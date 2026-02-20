@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UnMask — AI Media Authenticity Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #05050F;
+    --bg2:      #0A0A1A;
+    --card:     #0F0F22;
+    --card2:    #141430;
+    --border:   #1A1A38;
+    --red:      #E8294C;
+    --red2:     #FF4D6D;
+    --reddark:  #7A1525;
+    --reddeep:  #1A0008;
+    --white:    #FFFFFF;
+    --silver:   #A0A0C0;
+    --dim:      #505080;
+    --purple:   #7C3AED;
+    --teal:     #0891B2;
+    --green:    #10B981;
+    --gold:     #F59E0B;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(232,41,76,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,41,76,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events:none; z-index:0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: relative; z-index:10;
+    display: flex; align-items:center; justify-content:space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,5,15,0.95);
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    display:flex; align-items:center; gap:12px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:28px; font-weight:900; letter-spacing:2px;
+  }
+  .logo span.un  { color: var(--white); }
+  .logo span.mask{ color: var(--red);   }
+
+  .logo-eye {
+    width:36px; height:36px;
+    border:2.5px solid var(--red);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    box-shadow: 0 0 12px rgba(232,41,76,0.4);
+  }
+  .logo-eye::after {
+    content:''; width:12px; height:12px;
+    background: var(--red); border-radius:50%;
+    box-shadow: 0 0 8px var(--red);
+  }
+
+  .header-tags { display:flex; gap:8px; }
+  .tag {
+    padding:4px 12px; border-radius:2px;
+    font-size:11px; font-weight:700; letter-spacing:2px;
+    font-family:'Space Mono',monospace;
+  }
+  .tag-red    { background:var(--reddark); color:var(--red2);  border:1px solid var(--red);    }
+  .tag-purple { background:#2D1560;        color:#A78BFA;       border:1px solid var(--purple); }
+  .tag-teal   { background:#042832;        color:#67E8F9;       border:1px solid var(--teal);   }
+
+  /* ── MAIN ── */
+  main {
+    position:relative; z-index:5;
+    max-width: 1100px; margin: 0 auto;
+    padding: 48px 32px;
+  }
+
+  .hero-text {
+    text-align:center; margin-bottom:48px;
+  }
+  .hero-text h1 {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:clamp(36px,6vw,72px);
+    font-weight:900; letter-spacing:3px;
+    line-height:1;
+    margin-bottom:16px;
+  }
+  .hero-text h1 em {
+    font-style:normal; color:var(--red);
+    text-shadow: 0 0 40px rgba(232,41,76,0.5);
+  }
+  .hero-text p {
+    color:var(--silver); font-size:16px; font-weight:300;
+    max-width:520px; margin:0 auto;
+  }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-section {
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius:8px;
+    padding:48px;
+    text-align:center;
+    cursor:pointer;
+    transition: all 0.3s ease;
+    position:relative; overflow:hidden;
+    margin-bottom:32px;
+  }
+  .upload-section:hover {
+    border-color: var(--red);
+    background: var(--card2);
+    box-shadow: 0 0 40px rgba(232,41,76,0.1);
+  }
+  .upload-section.dragging {
+    border-color: var(--red);
+    background: var(--reddeep);
+    box-shadow: 0 0 60px rgba(232,41,76,0.2);
+  }
+
+  .upload-icon {
+    font-size:48px; margin-bottom:16px; display:block;
+  }
+  .upload-section h3 {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:22px; font-weight:700; letter-spacing:1px;
+    margin-bottom:8px;
+  }
+  .upload-section p { color:var(--dim); font-size:14px; }
+
+  .upload-btn {
+    display:inline-block; margin-top:20px;
+    padding:10px 28px;
+    background:var(--red); color:var(--white);
+    border:none; border-radius:4px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:16px; font-weight:700; letter-spacing:2px;
+    cursor:pointer; transition:all 0.2s;
+  }
+  .upload-btn:hover { background:var(--red2); transform:translateY(-1px); }
+
+  /* Tab bar */
+  .tab-bar {
+    display:flex; gap:0; margin-bottom:0;
+    border-bottom:1px solid var(--border);
+  }
+  .tab {
+    padding:12px 28px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:15px; font-weight:700; letter-spacing:2px;
+    color:var(--dim); cursor:pointer;
+    border-bottom:2px solid transparent;
+    transition:all 0.2s;
+  }
+  .tab.active { color:var(--red); border-bottom-color:var(--red); }
+  .tab:hover  { color:var(--silver); }
+
+  /* URL bar */
+  .url-bar {
+    display:flex; gap:12px; margin-bottom:32px;
+    background:var(--card); border:1px solid var(--border);
+    border-radius:6px; padding:4px 4px 4px 16px;
+  }
+  .url-bar input {
+    flex:1; background:transparent; border:none; outline:none;
+    color:var(--white); font-family:'Space Mono',monospace; font-size:13px;
+  }
+  .url-bar input::placeholder { color:var(--dim); }
+  .url-bar button {
+    padding:10px 20px; background:var(--red); border:none;
+    color:var(--white); border-radius:4px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:14px; font-weight:700; letter-spacing:1px;
+    cursor:pointer;
+  }
+
+  /* ── ANALYZE BUTTON ── */
+  .analyze-btn {
+    width:100%; padding:18px;
+    background: linear-gradient(135deg, var(--red) 0%, #C01A35 100%);
+    border:none; border-radius:6px; color:var(--white);
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:20px; font-weight:900; letter-spacing:4px;
+    cursor:pointer; transition:all 0.3s;
+    box-shadow: 0 4px 24px rgba(232,41,76,0.3);
+    position:relative; overflow:hidden;
+  }
+  .analyze-btn:hover {
+    transform:translateY(-2px);
+    box-shadow: 0 8px 32px rgba(232,41,76,0.5);
+  }
+  .analyze-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .analyze-btn::after {
+    content:'';
+    position:absolute; top:0; left:-100%; width:60px; height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent);
+    transition:left 0.5s;
+  }
+  .analyze-btn:hover::after { left:150%; }
+
+  /* ── LOADING ── */
+  #loadingOverlay {
+    display:none;
+    background:var(--card); border:1px solid var(--border);
+    border-radius:8px; padding:48px; text-align:center;
+    margin-top:32px;
+  }
+  #loadingOverlay.show { display:block; }
+
+  .scan-animation {
+    width:120px; height:120px;
+    margin:0 auto 24px;
+    position:relative;
+  }
+  .scan-ring {
+    position:absolute; inset:0;
+    border:2px solid transparent;
+    border-radius:50%;
+    animation: spin 2s linear infinite;
+  }
+  .scan-ring:nth-child(1) { border-top-color:var(--red);    animation-duration:1.5s; }
+  .scan-ring:nth-child(2) { border-right-color:var(--red);  animation-duration:2s;   inset:8px;  }
+  .scan-ring:nth-child(3) { border-bottom-color:var(--red2);animation-duration:3s;   inset:16px; }
+  .scan-center {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:20px; height:20px;
+    background:var(--red); border-radius:50%;
+    box-shadow:0 0 20px var(--red);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes spin  { to { transform:rotate(360deg); } }
+  @keyframes pulse { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.3)} }
+
+  .loading-steps { list-style:none; text-align:left; max-width:320px; margin:0 auto; }
+  .loading-steps li {
+    padding:8px 0; color:var(--dim);
+    font-family:'Space Mono',monospace; font-size:12px;
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:10px;
+    transition:color 0.3s;
+  }
+  .loading-steps li.done  { color:var(--green); }
+  .loading-steps li.active{ color:var(--red);   }
+  .step-dot {
+    width:8px; height:8px; border-radius:50%;
+    background:var(--border); flex-shrink:0; transition:background 0.3s;
+  }
+  .loading-steps li.done  .step-dot { background:var(--green); box-shadow:0 0 6px var(--green); }
+  .loading-steps li.active .step-dot { background:var(--red); box-shadow:0 0 6px var(--red); animation:pulse 0.8s infinite; }
+
+  /* ── RESULTS ── */
+  #results { display:none; margin-top:32px; }
+  #results.show { display:block; animation:fadeIn 0.5s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+  /* Verdict banner */
+  .verdict-banner {
+    border-radius:8px; padding:32px 40px;
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:24px; position:relative; overflow:hidden;
+  }
+  .verdict-banner.fake {
+    background: linear-gradient(135deg, var(--reddeep) 0%, #120008 100%);
+    border:1px solid var(--red);
+    box-shadow:0 0 60px rgba(232,41,76,0.2);
+  }
+  .verdict-banner.real {
+    background:linear-gradient(135deg,#001A0A 0%,#002210 100%);
+    border:1px solid var(--green);
+    box-shadow:0 0 60px rgba(16,185,129,0.2);
+  }
+  .verdict-label {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:72px; font-weight:900; letter-spacing:4px;
+    line-height:1;
+  }
+  .verdict-banner.fake .verdict-label { color:var(--red); text-shadow:0 0 40px rgba(232,41,76,0.6); }
+  .verdict-banner.real .verdict-label { color:var(--green); text-shadow:0 0 40px rgba(16,185,129,0.6); }
+
+  .verdict-meta { text-align:right; }
+  .confidence-num {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:48px; font-weight:900;
+  }
+  .verdict-banner.fake .confidence-num { color:var(--red2); }
+  .verdict-banner.real .confidence-num { color:var(--green); }
+  .confidence-label { color:var(--silver); font-size:13px; letter-spacing:2px; }
+
+  /* Confidence bar */
+  .conf-bar-wrap {
+    height:6px; background:var(--border); border-radius:3px;
+    margin-top:12px; overflow:hidden; width:200px;
+  }
+  .conf-bar {
+    height:100%; border-radius:3px;
+    transition:width 1.5s cubic-bezier(0.4,0,0.2,1);
+    width:0;
+  }
+  .fake .conf-bar { background:linear-gradient(90deg,var(--red),var(--red2)); }
+  .real .conf-bar { background:linear-gradient(90deg,#059669,var(--green)); }
+
+  /* Grid layout */
+  .results-grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px; margin-bottom:20px;
+  }
+  .results-grid.three { grid-template-columns:1fr 1fr 1fr; }
+
+  .result-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:8px; padding:24px;
+    position:relative; overflow:hidden;
+  }
+  .result-card::before {
+    content:''; position:absolute;
+    top:0; left:0; right:0; height:3px;
+  }
+  .result-card.accent-red::before    { background:var(--red);    }
+  .result-card.accent-purple::before { background:var(--purple); }
+  .result-card.accent-teal::before   { background:var(--teal);   }
+  .result-card.accent-gold::before   { background:var(--gold);   }
+  .result-card.accent-green::before  { background:var(--green);  }
+  .result-card.full { grid-column:1/-1; }
+
+  .card-title {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:13px; font-weight:700; letter-spacing:3px;
+    color:var(--dim); margin-bottom:16px;
+    text-transform:uppercase;
+  }
+
+  /* Heatmap simulation */
+  .heatmap-container {
+    position:relative; border-radius:6px; overflow:hidden;
+    background:var(--bg2); height:200px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .heatmap-face {
+    font-size:80px; position:relative; z-index:2;
+    filter:grayscale(0.3);
+  }
+  .heatmap-overlay {
+    position:absolute; inset:0; z-index:1;
+    background:radial-gradient(ellipse 60% 70% at 50% 45%, rgba(232,41,76,0.5) 0%, rgba(255,150,0,0.3) 40%, transparent 70%);
+    animation:heatPulse 2s ease-in-out infinite;
+  }
+  .heatmap-overlay-2 {
+    position:absolute; inset:0; z-index:1;
+    background:radial-gradient(ellipse 30% 20% at 38% 62%, rgba(255,100,0,0.4) 0%, transparent 60%);
+  }
+  @keyframes heatPulse { 0%,100%{opacity:0.8} 50%{opacity:1} }
+
+  .heatmap-legend {
+    display:flex; align-items:center; gap:8px;
+    margin-top:12px; font-size:12px; color:var(--dim);
+    font-family:'Space Mono',monospace;
+  }
+  .legend-bar {
+    flex:1; height:6px; border-radius:3px;
+    background:linear-gradient(90deg,#0891B2,#F59E0B,#E8294C);
+  }
+
+  /* Timeline chart */
+  .timeline-chart {
+    height:120px; position:relative;
+    background:var(--bg2); border-radius:6px;
+    overflow:hidden; padding:16px;
+  }
+  .timeline-svg { width:100%; height:100%; }
+  .timeline-label {
+    display:flex; justify-content:space-between;
+    font-size:11px; color:var(--dim);
+    font-family:'Space Mono',monospace;
+    margin-top:4px;
+  }
+
+  /* Breakdown list */
+  .breakdown-item {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 0; border-bottom:1px solid var(--border);
+  }
+  .breakdown-item:last-child { border:none; }
+  .breakdown-left { display:flex; align-items:center; gap:10px; }
+  .breakdown-icon { font-size:16px; }
+  .breakdown-name { font-size:13px; color:var(--silver); }
+  .breakdown-status {
+    font-family:'Space Mono',monospace; font-size:11px;
+    padding:3px 10px; border-radius:2px; font-weight:700;
+  }
+  .status-fake    { background:rgba(232,41,76,0.15); color:var(--red); border:1px solid var(--reddark); }
+  .status-real    { background:rgba(16,185,129,0.15); color:var(--green); border:1px solid #065F46; }
+  .status-warning { background:rgba(245,158,11,0.15); color:var(--gold); border:1px solid #78350F; }
+
+  /* Model vote display */
+  .model-votes { display:flex; flex-direction:column; gap:12px; }
+  .model-vote-row { }
+  .model-vote-label {
+    display:flex; justify-content:space-between;
+    font-size:12px; margin-bottom:4px;
+  }
+  .model-name { color:var(--silver); font-family:'Space Mono',monospace; font-size:11px; }
+  .model-score { font-weight:700; }
+  .vote-bar-wrap { height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
+  .vote-bar {
+    height:100%; border-radius:4px;
+    transition:width 1.5s cubic-bezier(0.4,0,0.2,1);
+    width:0;
+  }
+
+  /* Audio sync */
+  .audio-meter {
+    height:60px; display:flex; align-items:flex-end;
+    gap:3px; overflow:hidden;
+  }
+  .audio-bar {
+    flex:1; border-radius:2px 2px 0 0;
+    transition:height 0.3s;
+  }
+
+  /* Frame stats */
+  .frame-stats {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:12px;
+  }
+  .frame-stat {
+    background:var(--bg2); border-radius:6px; padding:14px;
+    text-align:center; border:1px solid var(--border);
+  }
+  .frame-stat-num {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:28px; font-weight:900; color:var(--red);
+    line-height:1;
+  }
+  .frame-stat-label {
+    font-size:11px; color:var(--dim); margin-top:4px;
+    font-family:'Space Mono',monospace;
+  }
+
+  /* Image preview */
+  .preview-img-wrap {
+    width:100%; height:180px; border-radius:6px;
+    background:var(--bg2); display:flex;
+    align-items:center; justify-content:center;
+    font-size:72px; border:1px solid var(--border);
+    position:relative; overflow:hidden;
+  }
+  .preview-scan-line {
+    position:absolute; left:0; right:0; height:2px;
+    background:linear-gradient(90deg,transparent,var(--red),transparent);
+    animation:scanDown 1.5s ease-in-out infinite;
+  }
+  @keyframes scanDown {
+    0%  { top:-2px; opacity:0; }
+    10% { opacity:1; }
+    90% { opacity:1; }
+    100%{ top:calc(100% + 2px); opacity:0; }
+  }
+  .preview-bbox {
+    position:absolute;
+    border:2px solid var(--red);
+    top:30%; left:30%; width:40%; height:50%;
+    box-shadow:0 0 16px rgba(232,41,76,0.4);
+  }
+  .preview-bbox::before,
+  .preview-bbox::after {
+    content:''; position:absolute;
+    width:10px; height:10px;
+  }
+  .preview-bbox::before { top:-2px; left:-2px; border-top:3px solid var(--red2); border-left:3px solid var(--red2); }
+  .preview-bbox::after  { bottom:-2px; right:-2px; border-bottom:3px solid var(--red2); border-right:3px solid var(--red2); }
+
+  /* Certificate */
+  .certificate {
+    background: linear-gradient(135deg,#0A0A1A,#12122A);
+    border:1px solid var(--border); border-radius:8px;
+    padding:28px; text-align:center;
+    position:relative; overflow:hidden;
+  }
+  .certificate::before {
+    content:''; position:absolute; inset:3px;
+    border:1px dashed rgba(232,41,76,0.2);
+    border-radius:6px; pointer-events:none;
+  }
+  .cert-title {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:13px; letter-spacing:4px; color:var(--dim);
+    margin-bottom:8px;
+  }
+  .cert-verdict {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:32px; font-weight:900; color:var(--red);
+    margin-bottom:8px; letter-spacing:2px;
+  }
+  .cert-hash {
+    font-family:'Space Mono',monospace; font-size:10px;
+    color:var(--dim); word-break:break-all; margin:12px 0;
+  }
+  .cert-btn {
+    padding:10px 24px;
+    background:transparent; border:1px solid var(--border);
+    color:var(--silver); border-radius:4px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:14px; font-weight:700; letter-spacing:2px;
+    cursor:pointer; transition:all 0.2s; display:inline-block;
+    margin-top:8px;
+  }
+  .cert-btn:hover { border-color:var(--red); color:var(--red); }
+
+  /* Reset btn */
+  .reset-btn {
+    width:100%; padding:14px;
+    background:transparent; border:1px solid var(--border);
+    color:var(--dim); border-radius:6px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:15px; font-weight:700; letter-spacing:3px;
+    cursor:pointer; transition:all 0.2s; margin-top:16px;
+  }
+  .reset-btn:hover { border-color:var(--silver); color:var(--silver); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+  /* Demo samples */
+  .demo-samples {
+    margin-bottom:28px;
+  }
+  .demo-label {
+    font-size:11px; color:var(--dim); letter-spacing:2px;
+    font-family:'Space Mono',monospace; margin-bottom:10px;
+  }
+  .sample-grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .sample-item {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:6px; padding:10px 16px;
+    display:flex; align-items:center; gap:8px;
+    cursor:pointer; transition:all 0.2s;
+    font-size:13px; color:var(--silver);
+  }
+  .sample-item:hover { border-color:var(--red); color:var(--white); }
+  .sample-item.selected { border-color:var(--red); background:var(--card2); color:var(--white); }
+  .sample-dot {
+    width:8px; height:8px; border-radius:50%;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-eye"></div>
+    <div><span class="un">UN</span><span class="mask">MASK</span></div>
+  </div>
+  <div class="header-tags">
+    <span class="tag tag-red">CYBERSECURITY</span>
+    <span class="tag tag-purple">DEEP LEARNING</span>
+    <span class="tag tag-teal">FOOBAR 10.0</span>
+  </div>
+</header>
+
+<main>
+  <div class="hero-text">
+    <h1>Detect <em>Deepfakes</em><br>In Real Time</h1>
+    <p>Upload any image or video. Our ensemble AI model tells you if it's real or AI-generated — with full explainability.</p>
+  </div>
+
+  <!-- Upload UI -->
+  <div id="uploadSection">
+    <div class="tab-bar" style="margin-bottom:16px">
+      <div class="tab active" onclick="switchTab('image',this)">🖼️ &nbsp;IMAGE</div>
+      <div class="tab" onclick="switchTab('video',this)">🎬 &nbsp;VIDEO</div>
+      <div class="tab" onclick="switchTab('url',this)">🔗 &nbsp;URL</div>
+    </div>
+
+    <!-- Demo samples -->
+    <div class="demo-samples">
+      <div class="demo-label">// TRY A DEMO SAMPLE</div>
+      <div class="sample-grid" id="sampleGrid">
+        <div class="sample-item selected" onclick="selectSample(this,'fake1')" data-type="fake">
+          <span class="sample-dot" style="background:var(--red)"></span>
+          AI Generated Portrait
+        </div>
+        <div class="sample-item" onclick="selectSample(this,'real1')" data-type="real">
+          <span class="sample-dot" style="background:var(--green)"></span>
+          Genuine Photo
+        </div>
+        <div class="sample-item" onclick="selectSample(this,'fakevid')" data-type="fakevid">
+          <span class="sample-dot" style="background:var(--gold)"></span>
+          Deepfake Video Clip
+        </div>
+        <div class="sample-item" onclick="selectSample(this,'realvid')" data-type="realvid">
+          <span class="sample-dot" style="background:var(--teal)"></span>
+          Real Video Clip
+        </div>
+      </div>
+    </div>
+
+    <!-- Drop Zone -->
+    <div class="upload-section" id="dropZone"
+      ondrop="handleDrop(event)"
+      ondragover="event.preventDefault();this.classList.add('dragging')"
+      ondragleave="this.classList.remove('dragging')"
+      onclick="document.getElementById('fileInput').click()">
+      <span class="upload-icon" id="uploadIcon">👆</span>
+      <h3 id="uploadTitle">DROP YOUR FILE HERE</h3>
+      <p id="uploadDesc">or click to browse — supports JPG, PNG, MP4, AVI</p>
+      <button class="upload-btn" onclick="event.stopPropagation();document.getElementById('fileInput').click()">BROWSE FILES</button>
+      <input type="file" id="fileInput" style="display:none" accept="image/*,video/*" onchange="fileSelected(this)">
+    </div>
+
+    <button class="analyze-btn" onclick="startAnalysis()" id="analyzeBtn">
+      ⚡ &nbsp; ANALYZE NOW
+    </button>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingOverlay">
+    <div class="scan-animation">
+      <div class="scan-ring"></div>
+      <div class="scan-ring"></div>
+      <div class="scan-ring"></div>
+      <div class="scan-center"></div>
+    </div>
+    <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:24px">
+      ANALYZING MEDIA...
+    </h3>
+    <ul class="loading-steps" id="loadingSteps">
+      <li id="step1"><span class="step-dot"></span> Detecting face regions via MTCNN</li>
+      <li id="step2"><span class="step-dot"></span> Running EfficientNetB4 classifier</li>
+      <li id="step3"><span class="step-dot"></span> Cross-checking with Xception model</li>
+      <li id="step4"><span class="step-dot"></span> MesoNet deepfake analysis</li>
+      <li id="step5"><span class="step-dot"></span> Generating Grad-CAM heatmap</li>
+      <li id="step6"><span class="step-dot"></span> Audio lip-sync verification</li>
+      <li id="step7"><span class="step-dot"></span> Computing ensemble verdict</li>
+    </ul>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <!-- Verdict -->
+    <div class="verdict-banner fake" id="verdictBanner">
+      <div>
+        <div class="verdict-label" id="verdictLabel">⚠ FAKE</div>
+        <div style="color:var(--silver);font-size:13px;margin-top:4px;letter-spacing:1px">
+          AI-Generated Content Detected
+        </div>
+      </div>
+      <div class="verdict-meta">
+        <div class="confidence-num" id="confidenceNum">94.7%</div>
+        <div class="confidence-label">CONFIDENCE SCORE</div>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar" id="confBar"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 1: Preview + Heatmap + Breakdown -->
+    <div class="results-grid" style="grid-template-columns:1fr 1fr 1fr">
+      <!-- Preview -->
+      <div class="result-card accent-red">
+        <div class="card-title">INPUT MEDIA</div>
+        <div class="preview-img-wrap" id="previewWrap">
+          <span id="previewEmoji">😐</span>
+          <div class="preview-scan-line"></div>
+          <div class="preview-bbox" id="previewBbox"></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <span style="font-size:11px;color:var(--dim);font-family:'Space Mono',monospace">
+            Face detected: <span style="color:var(--red)" id="faceCount">1</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="result-card accent-purple">
+        <div class="card-title">GRAD-CAM HEATMAP</div>
+        <div class="heatmap-container">
+          <div class="heatmap-overlay" id="heatmapOverlay"></div>
+          <div class="heatmap-overlay-2" id="heatmapOverlay2"></div>
+          <span class="heatmap-face">😐</span>
+        </div>
+        <div class="heatmap-legend">
+          <span>LOW</span>
+          <div class="legend-bar"></div>
+          <span>HIGH</span>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-top:8px;font-family:'Space Mono',monospace" id="heatmapNote">
+          ▲ Eye region + mouth boundaries flagged
+        </div>
+      </div>
+
+      <!-- Breakdown -->
+      <div class="result-card accent-teal">
+        <div class="card-title">DETECTION BREAKDOWN</div>
+        <div id="breakdownList">
+          <div class="breakdown-item">
+            <div class="breakdown-left"><span class="breakdown-icon">👁️</span><span class="breakdown-name">Facial Structure</span></div>
+            <span class="breakdown-status status-fake" id="bd1">ANOMALY</span>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-left"><span class="breakdown-icon">🔬</span><span class="breakdown-name">Texture Analysis</span></div>
+            <span class="breakdown-status status-fake" id="bd2">ANOMALY</span>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-left"><span class="breakdown-icon">💡</span><span class="breakdown-name">Lighting Pattern</span></div>
+            <span class="breakdown-status status-warning" id="bd3">SUSPECT</span>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-left"><span class="breakdown-icon">👀</span><span class="breakdown-name">Blink Pattern</span></div>
+            <span class="breakdown-status status-fake" id="bd4">UNNATURAL</span>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-left"><span class="breakdown-icon">🔊</span><span class="breakdown-name">Audio Sync</span></div>
+            <span class="breakdown-status status-warning" id="bd5">0.3s DELAY</span>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-left"><span class="breakdown-icon">🌄</span><span class="breakdown-name">Background</span></div>
+            <span class="breakdown-status status-real" id="bd6">GENUINE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Model votes + Timeline -->
+    <div class="results-grid">
+      <!-- Model votes -->
+      <div class="result-card accent-gold">
+        <div class="card-title">ENSEMBLE MODEL VOTES</div>
+        <div class="model-votes">
+          <div class="model-vote-row">
+            <div class="model-vote-label">
+              <span class="model-name">EfficientNetB4</span>
+              <span class="model-score" style="color:var(--red)" id="eff-score">93.2% FAKE</span>
+            </div>
+            <div class="vote-bar-wrap">
+              <div class="vote-bar" id="eff-bar" style="background:linear-gradient(90deg,var(--reddark),var(--red))"></div>
+            </div>
+          </div>
+          <div class="model-vote-row" style="margin-top:12px">
+            <div class="model-vote-label">
+              <span class="model-name">Xception</span>
+              <span class="model-score" style="color:var(--red)" id="xce-score">96.1% FAKE</span>
+            </div>
+            <div class="vote-bar-wrap">
+              <div class="vote-bar" id="xce-bar" style="background:linear-gradient(90deg,var(--reddark),var(--red2))"></div>
+            </div>
+          </div>
+          <div class="model-vote-row" style="margin-top:12px">
+            <div class="model-vote-label">
+              <span class="model-name">MesoNet</span>
+              <span class="model-score" style="color:var(--red)" id="mes-score">94.8% FAKE</span>
+            </div>
+            <div class="vote-bar-wrap">
+              <div class="vote-bar" id="mes-bar" style="background:linear-gradient(90deg,var(--reddark),var(--red))"></div>
+            </div>
+          </div>
+          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+            <div class="model-vote-label">
+              <span class="model-name" style="color:var(--gold)">WEIGHTED ENSEMBLE</span>
+              <span class="model-score" style="color:var(--gold)" id="ens-score">94.7% FAKE</span>
+            </div>
+            <div class="vote-bar-wrap" style="height:10px">
+              <div class="vote-bar" id="ens-bar"
+                style="background:linear-gradient(90deg,var(--reddark),var(--gold));height:100%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="result-card accent-purple">
+        <div class="card-title">MANIPULATION TIMELINE (VIDEO)</div>
+        <div class="timeline-chart">
+          <svg class="timeline-svg" id="timelineSvg" viewBox="0 0 400 80" preserveAspectRatio="none">
+            <!-- Grid lines -->
+            <line x1="0" y1="20" x2="400" y2="20" stroke="#1A1A38" stroke-width="1"/>
+            <line x1="0" y1="40" x2="400" y2="40" stroke="#1A1A38" stroke-width="1"/>
+            <line x1="0" y1="60" x2="400" y2="60" stroke="#1A1A38" stroke-width="1"/>
+            <!-- Threshold line at 50% -->
+            <line x1="0" y1="40" x2="400" y2="40" stroke="rgba(232,41,76,0.3)" stroke-width="1" stroke-dasharray="4,4"/>
+            <!-- Area fill -->
+            <path id="timelinePath" d="" fill="rgba(232,41,76,0.1)" stroke="none"/>
+            <!-- Line -->
+            <polyline id="timelinePolyline" points="" fill="none" stroke="#E8294C" stroke-width="2"/>
+            <!-- Labels -->
+            <text x="2" y="18" fill="#505080" font-size="8" font-family="monospace">100%</text>
+            <text x="2" y="78" fill="#505080" font-size="8" font-family="monospace">0%</text>
+            <text x="164" y="37" fill="rgba(232,41,76,0.6)" font-size="7" font-family="monospace">THRESHOLD</text>
+          </svg>
+        </div>
+        <div class="timeline-label" id="timelineLabels">
+          <span>0s</span><span>15s</span><span>30s</span><span>45s</span><span>60s</span>
+        </div>
+        <div style="margin-top:12px" class="frame-stats" id="frameStats">
+          <div class="frame-stat">
+            <div class="frame-stat-num" id="framesAnalyzed">247</div>
+            <div class="frame-stat-label">FRAMES</div>
+          </div>
+          <div class="frame-stat">
+            <div class="frame-stat-num" style="color:var(--red)" id="fakeFrames">211</div>
+            <div class="frame-stat-label">FAKE FRAMES</div>
+          </div>
+          <div class="frame-stat">
+            <div class="frame-stat-num" style="color:var(--green)" id="realFrames">36</div>
+            <div class="frame-stat-label">REAL FRAMES</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Certificate -->
+    <div class="result-card accent-red full">
+      <div class="card-title">AUTHENTICITY REPORT</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center">
+        <div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:11px;color:var(--dim);font-family:'Space Mono',monospace;margin-bottom:4px">VERDICT</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--red)" id="repVerdict">AI GENERATED</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--dim);font-family:'Space Mono',monospace;margin-bottom:4px">CONFIDENCE</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--red2)" id="repConf">94.7%</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--dim);font-family:'Space Mono',monospace;margin-bottom:4px">ANALYSIS TIME</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--silver)">1.8s</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--dim);font-family:'Space Mono',monospace;margin-bottom:4px">MODELS USED</div>
+              <div style="font-size:13px;color:var(--silver)">EfficientNetB4 + Xception + MesoNet</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--dim);font-family:'Space Mono',monospace;margin-bottom:4px">FACES DETECTED</div>
+              <div style="font-size:13px;color:var(--silver)" id="repFaces">1 face analyzed</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--dim);font-family:'Space Mono',monospace;margin-bottom:4px">TIMESTAMP</div>
+              <div style="font-size:13px;color:var(--silver)" id="repTime">—</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:10px;background:var(--bg2);border-radius:4px;
+            font-family:'Space Mono',monospace;font-size:11px;color:var(--dim)">
+            SHA256: <span id="hashVal">e3b4f7a9c2d1e8f6b0a3c5d7e9f1a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6</span>
+          </div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:48px;margin-bottom:8px" id="certEmoji">⚠️</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;
+            letter-spacing:3px;color:var(--dim);margin-bottom:12px">CERTIFICATE</div>
+          <button class="cert-btn" onclick="downloadCert()">⬇ DOWNLOAD PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="resetApp()">↩ ANALYZE ANOTHER FILE</button>
+  </div>
+</main>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────
+let currentSample = 'fake1';
+let currentTab    = 'image';
+
+const SAMPLES = {
+  fake1:   { type:'fake',    conf:94.7, emoji:'😐', label:'AI Generated Portrait',  frames:null,                    audioSync:'0.3s DELAY', faceCount:1 },
+  real1:   { type:'real',    conf:3.2,  emoji:'🙂', label:'Genuine Photo',           frames:null,                    audioSync:'IN SYNC',    faceCount:1 },
+  fakevid: { type:'fake',    conf:91.6, emoji:'🎬', label:'Deepfake Video Clip',      frames:{total:247,fake:211,real:36}, audioSync:'0.2s DELAY', faceCount:1 },
+  realvid: { type:'real',    conf:2.8,  emoji:'📹', label:'Real Video Clip',          frames:{total:180,fake:4, real:176},audioSync:'IN SYNC',    faceCount:2 },
+};
+
+// ── TAB SWITCHING ─────────────────────────────────────────
+function switchTab(type, el) {
+  currentTab = type;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── SAMPLE SELECTION ──────────────────────────────────────
+function selectSample(el, key) {
+  document.querySelectorAll('.sample-item').forEach(i=>i.classList.remove('selected'));
+  el.classList.add('selected');
+  currentSample = key;
+  const s = SAMPLES[key];
+  document.getElementById('uploadIcon').textContent  = s.emoji;
+  document.getElementById('uploadTitle').textContent = s.label.toUpperCase();
+  document.getElementById('uploadDesc').textContent  = 'Sample loaded — click Analyze Now to proceed';
+}
+
+// ── FILE HANDLING ─────────────────────────────────────────
+function fileSelected(input) {
+  if(input.files[0]) {
+    document.getElementById('uploadTitle').textContent = input.files[0].name.toUpperCase();
+    document.getElementById('uploadDesc').textContent  = 'File ready — click Analyze Now';
+    document.getElementById('uploadIcon').textContent  = input.files[0].type.startsWith('video') ? '🎬' : '🖼️';
+  }
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('dragging');
+  if(e.dataTransfer.files[0]) fileSelected({files:e.dataTransfer.files});
+}
+
+// ── ANALYSIS FLOW ─────────────────────────────────────────
+function startAnalysis() {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('results').classList.remove('show');
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.classList.add('show');
+
+  // Reset steps
+  for(let i=1;i<=7;i++) {
+    const s = document.getElementById('step'+i);
+    s.classList.remove('done','active');
+  }
+
+  const delays = [0, 600, 1200, 1800, 2400, 3000, 3600];
+  delays.forEach((d,i)=>{
+    setTimeout(()=>{ document.getElementById('step'+(i+1)).classList.add('active'); },d);
+    if(i>0) setTimeout(()=>{ document.getElementById('step'+i).classList.remove('active'); document.getElementById('step'+i).classList.add('done'); },d);
+  });
+  setTimeout(()=>{ document.getElementById('step7').classList.remove('active'); document.getElementById('step7').classList.add('done'); },4200);
+
+  setTimeout(()=>{
+    overlay.classList.remove('show');
+    showResults();
+  }, 4800);
+}
+
+// ── RESULTS DISPLAY ───────────────────────────────────────
+function showResults() {
+  const data   = SAMPLES[currentSample];
+  const isFake = data.type === 'fake';
+  const conf   = data.conf;
+
+  // Verdict banner
+  const banner = document.getElementById('verdictBanner');
+  banner.className = 'verdict-banner ' + (isFake ? 'fake' : 'real');
+  document.getElementById('verdictLabel').textContent   = isFake ? '⚠ FAKE' : '✓ REAL';
+  document.getElementById('confidenceNum').textContent  = conf + '%';
+  document.getElementById('verdictLabel').style.color   = isFake ? 'var(--red)' : 'var(--green)';
+  document.getElementById('confidenceNum').style.color  = isFake ? 'var(--red2)' : 'var(--green)';
+
+  // Preview
+  document.getElementById('previewEmoji').textContent = data.emoji;
+  document.getElementById('previewBbox').style.display = isFake ? 'block' : 'none';
+  document.getElementById('faceCount').textContent = data.faceCount;
+
+  // Heatmap visibility
+  document.getElementById('heatmapOverlay').style.opacity  = isFake ? '1' : '0';
+  document.getElementById('heatmapOverlay2').style.opacity = isFake ? '1' : '0';
+  document.getElementById('heatmapNote').textContent = isFake ? '▲ Eye region + mouth boundaries flagged' : '✓ No manipulation regions detected';
+  document.getElementById('heatmapNote').style.color = isFake ? 'var(--dim)' : 'var(--green)';
+
+  // Breakdown
+  if(isFake) {
+    setBreakdown('bd1','status-fake','ANOMALY');
+    setBreakdown('bd2','status-fake','ANOMALY');
+    setBreakdown('bd3','status-warning','SUSPECT');
+    setBreakdown('bd4','status-fake','UNNATURAL');
+    setBreakdown('bd5','status-warning', data.audioSync);
+    setBreakdown('bd6','status-real','GENUINE');
+  } else {
+    setBreakdown('bd1','status-real','NORMAL');
+    setBreakdown('bd2','status-real','NORMAL');
+    setBreakdown('bd3','status-real','NORMAL');
+    setBreakdown('bd4','status-real','NATURAL');
+    setBreakdown('bd5','status-real', data.audioSync);
+    setBreakdown('bd6','status-real','GENUINE');
+  }
+
+  // Model votes
+  if(isFake) {
+    setModelVote('eff', 93.2, true);
+    setModelVote('xce', 96.1, true);
+    setModelVote('mes', 94.8, true);
+    setModelVote('ens', conf,  true);
+  } else {
+    setModelVote('eff', 3.8,  false);
+    setModelVote('xce', 2.1,  false);
+    setModelVote('mes', 4.2,  false);
+    setModelVote('ens', conf,  false);
+  }
+
+  // Timeline
+  drawTimeline(isFake);
+
+  // Frame stats
+  if(data.frames) {
+    document.getElementById('framesAnalyzed').textContent = data.frames.total;
+    document.getElementById('fakeFrames').textContent     = data.frames.fake;
+    document.getElementById('realFrames').textContent     = data.frames.real;
+  } else {
+    document.getElementById('framesAnalyzed').textContent = 'N/A';
+    document.getElementById('fakeFrames').textContent     = 'N/A';
+    document.getElementById('realFrames').textContent     = 'N/A';
+  }
+
+  // Report
+  document.getElementById('repVerdict').textContent = isFake ? 'AI GENERATED' : 'AUTHENTIC';
+  document.getElementById('repVerdict').style.color = isFake ? 'var(--red)' : 'var(--green)';
+  document.getElementById('repConf').textContent    = conf + '%';
+  document.getElementById('repConf').style.color    = isFake ? 'var(--red2)' : 'var(--green)';
+  document.getElementById('repFaces').textContent   = data.faceCount + ' face(s) analyzed';
+  document.getElementById('repTime').textContent    = new Date().toLocaleTimeString();
+  document.getElementById('certEmoji').textContent  = isFake ? '⚠️' : '✅';
+
+  // Show results
+  const resultsEl = document.getElementById('results');
+  resultsEl.classList.add('show');
+
+  // Animate bars
+  setTimeout(()=>{
+    document.getElementById('confBar').style.width = conf + '%';
+    animateBar('eff-bar', isFake ? 93.2 : 3.8);
+    animateBar('xce-bar', isFake ? 96.1 : 2.1);
+    animateBar('mes-bar', isFake ? 94.8 : 4.2);
+    animateBar('ens-bar', conf);
+  }, 200);
+}
+
+function setBreakdown(id, cls, text) {
+  const el = document.getElementById(id);
+  el.className = 'breakdown-status ' + cls;
+  el.textContent = text;
+}
+
+function setModelVote(prefix, score, isFake) {
+  const scoreEl = document.getElementById(prefix+'-score');
+  scoreEl.textContent = score + '% ' + (isFake ? 'FAKE' : 'REAL');
+  scoreEl.style.color = isFake ? 'var(--red)' : 'var(--green)';
+}
+
+function animateBar(id, pct) {
+  document.getElementById(id).style.width = pct + '%';
+}
+
+// ── TIMELINE ──────────────────────────────────────────────
+function drawTimeline(isFake) {
+  const W=400, H=80;
+  // Generate fake-looking data
+  const pts = [];
+  for(let i=0;i<=20;i++) {
+    const x = i*(W/20);
+    let y;
+    if(isFake) {
+      const base = 0.8 + Math.sin(i*0.8)*0.1;
+      const noise = (Math.random()-0.5)*0.15;
+      y = Math.min(0.98, Math.max(0.4, base+noise));
+    } else {
+      const base = 0.05 + Math.sin(i*1.2)*0.04;
+      const noise = (Math.random()-0.5)*0.06;
+      y = Math.min(0.25, Math.max(0.01, base+noise));
+    }
+    pts.push({x, y: H - y*H});
+  }
+
+  const line = pts.map((p,i)=>(i===0?`M${p.x},${p.y}`:`L${p.x},${p.y}`)).join(' ');
+  const area = line + ` L${W},${H} L0,${H} Z`;
+
+  document.getElementById('timelinePolyline').setAttribute('points',
+    pts.map(p=>`${p.x},${p.y}`).join(' '));
+  document.getElementById('timelinePath').setAttribute('d', area);
+  document.getElementById('timelinePath').style.fill =
+    isFake ? 'rgba(232,41,76,0.1)' : 'rgba(16,185,129,0.1)';
+  document.getElementById('timelinePolyline').style.stroke =
+    isFake ? '#E8294C' : '#10B981';
+}
+
+// ── UTILS ─────────────────────────────────────────────────
+function resetApp() {
+  document.getElementById('uploadSection').style.display = 'block';
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('confBar').style.width = '0';
+  ['eff-bar','xce-bar','mes-bar','ens-bar'].forEach(id=>{
+    document.getElementById(id).style.width = '0';
+  });
+}
+
+function downloadCert() {
+  alert('📄 In the full version, this generates a downloadable PDF authenticity certificate with SHA256 hash, timestamp, and model scores.');
+}
+
+// Init
+selectSample(document.querySelector('.sample-item.selected'), 'fake1');
+document.getElementById('repTime').textContent = new Date().toLocaleTimeString();
+drawTimeline(true);
+</script>
+</body>
+</html>

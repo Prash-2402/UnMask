@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.env
+
+# Dataset (too large for GitHub)
+dataset/
+*.csv
+
+# Models (too large for GitHub)
+*.h5
+*.pkl
+*.model
+
+# Virtual environment
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
