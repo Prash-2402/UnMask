@@ -54,9 +54,31 @@ def download_model_if_needed():
 def load_model():
     global model, detector
 
-    model_path = download_model_if_needed()
-    model = tf.keras.models.load_model(model_path)
-    print("Model loaded ✅")
+    # Use absolute path relative to this script — works on any server
+    base_dir   = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, 'model', 'unmask_b0_multidomain_boost.keras')
+    alt_path   = os.path.join(base_dir, 'model', 'unmask_model.h5')
+
+    print(f"Looking for model at: {model_path}")
+
+    if os.path.exists(model_path):
+        model = tf.keras.models.load_model(model_path)
+        print("Model loaded ✅")
+    elif os.path.exists(alt_path):
+        model = tf.keras.models.load_model(alt_path)
+        print("Base model loaded ✅")
+    else:
+        # Try download from env var as fallback
+        gdrive_url = os.environ.get("MODEL_GDRIVE_URL")
+        if gdrive_url:
+            import urllib.request
+            print("Downloading model from URL...")
+            os.makedirs(os.path.join(base_dir, "model"), exist_ok=True)
+            urllib.request.urlretrieve(gdrive_url, model_path)
+            model = tf.keras.models.load_model(model_path)
+            print("Downloaded and loaded ✅")
+        else:
+            raise FileNotFoundError(f"Model not found at {model_path}")
 
     detector = MTCNN()
     print("Params:", model.count_params())
