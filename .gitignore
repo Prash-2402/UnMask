@@ -1,6 +1,5 @@
 # Python
 __pycache__/
-*.py[cod]
 *.pyc
 *.pyo
 *.pyd
@@ -8,12 +7,6 @@ __pycache__/
 
 # Dataset (too large for GitHub)
 dataset/
-*.csv
-
-# Models (too large for GitHub)
-*.h5
-*.pkl
-*.model
 
 # Virtual environment
 venv/
@@ -26,3 +19,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Temp files from video processing
+temp_*.mp4
