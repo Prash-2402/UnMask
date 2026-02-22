@@ -109,6 +109,16 @@ def preprocess_face(img):
 
 
 # =============================
+# DEBUG ROUTE (temporary)
+# =============================
+@app.route('/debug')
+def debug():
+    import glob
+    base = os.path.dirname(os.path.abspath(__file__))
+    files = glob.glob(os.path.join(base, '**'), recursive=True)
+    return '<br>'.join(sorted(files)[:50])
+
+# =============================
 # SERVE FRONTEND
 # =============================
 @app.route('/')
