@@ -31,17 +31,32 @@ def add_cors(response):
 # =============================
 # LOAD MODEL
 # =============================
+def download_model_if_needed():
+    """Download model from Google Drive if not present (for cloud deployment)."""
+    model_path = 'model/unmask_b0_multidomain_boost.keras'
+    if os.path.exists(model_path):
+        return model_path
+
+    gdrive_url = os.environ.get('MODEL_GDRIVE_URL')
+    if not gdrive_url:
+        raise FileNotFoundError(
+            "Model not found locally and MODEL_GDRIVE_URL env var not set."
+        )
+
+    import urllib.request
+    print("Downloading model from Google Drive...")
+    os.makedirs('model', exist_ok=True)
+    urllib.request.urlretrieve(gdrive_url, model_path)
+    print("Model downloaded ✅")
+    return model_path
+
+
 def load_model():
     global model, detector
 
-    if os.path.exists('model/unmask_b0_multidomain_boost.keras'):
-        model = tf.keras.models.load_model('model/unmask_b0_multidomain_boost.keras')
-        print("Loaded EfficientNetB0 multidomain model ✅")
-    elif os.path.exists('model/unmask_model.h5'):
-        model = tf.keras.models.load_model('model/unmask_model.h5')
-        print("Loaded base model ✅")
-    else:
-        raise FileNotFoundError("No model file found in ./model/")
+    model_path = download_model_if_needed()
+    model = tf.keras.models.load_model(model_path)
+    print("Model loaded ✅")
 
     detector = MTCNN()
     print("Params:", model.count_params())
