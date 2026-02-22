@@ -230,6 +230,13 @@ def analyze_video():
 # =============================
 # START SERVER
 # =============================
-if __name__ == '__main__':
+
+# Load model at startup (works for both gunicorn and direct run)
+try:
     load_model()
+except Exception as e:
+    print(f"WARNING: Model failed to load: {e}")
+    print("Server will start but /analyze endpoints will return 503.")
+
+if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)
