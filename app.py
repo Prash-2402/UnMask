@@ -1,149 +1,220 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, render_template
 import numpy as np
 import cv2
 import tensorflow as tf
 from mtcnn import MTCNN
+from tensorflow.keras.applications.efficientnet import preprocess_input
 import os
+import uuid
 
-app = Flask(__name__)
-CORS(app)
+# =============================
+# APP CONFIG
+# =============================
+app = Flask(__name__, template_folder='frontend')
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2 GB
 
-model = None
+model    = None
 detector = None
 
 
+# =============================
+# CORS — applied to every response
+# =============================
+@app.after_request
+def add_cors(response):
+    response.headers['Access-Control-Allow-Origin']  = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+
+# =============================
+# LOAD MODEL
+# =============================
 def load_model():
     global model, detector
+
     if os.path.exists('model/unmask_b0_multidomain_boost.keras'):
-        model = tf.keras.models.load_model(
-            'model/unmask_b0_multidomain_boost.keras')
+        model = tf.keras.models.load_model('model/unmask_b0_multidomain_boost.keras')
         print("Loaded EfficientNetB0 multidomain model ✅")
     elif os.path.exists('model/unmask_model.h5'):
         model = tf.keras.models.load_model('model/unmask_model.h5')
         print("Loaded base model ✅")
     else:
-        raise FileNotFoundError("No model file found!")
+        raise FileNotFoundError("No model file found in ./model/")
 
     detector = MTCNN()
     print("Params:", model.count_params())
     print("Model ready ✅")
 
 
+# =============================
+# PREPROCESS
+# =============================
 def preprocess_face(img):
     faces = detector.detect_faces(img)
+
     if faces:
         x, y, w, h = faces[0]['box']
-        x, y = max(0, x-20), max(0, y-20)
-        w = min(w+40, img.shape[1]-x)
-        h = min(h+40, img.shape[0]-y)
-        face = img[y:y+h, x:x+w]
+        x, y = max(0, x - 20), max(0, y - 20)
+        w    = min(w + 40, img.shape[1] - x)
+        h    = min(h + 40, img.shape[0] - y)
+        face = img[y:y + h, x:x + w]
     else:
         face = img
 
     face = cv2.resize(face, (224, 224))
-    face = face.astype(np.float32) / 255.0
+    face = face.astype(np.float32)
     face = np.expand_dims(face, axis=0)
+    face = preprocess_input(face)
+
     return face, len(faces)
 
 
+# =============================
+# SERVE FRONTEND
+# =============================
 @app.route('/')
 def home():
+    return render_template('index.html')
+
+
+# =============================
+# HANDLE OPTIONS (preflight)
+# =============================
+@app.route('/analyze/image', methods=['OPTIONS'])
+@app.route('/analyze/video', methods=['OPTIONS'])
+@app.route('/health',        methods=['OPTIONS'])
+def handle_options():
+    return '', 204
+
+
+# =============================
+# HEALTH CHECK
+# =============================
+@app.route('/health', methods=['GET'])
+def health():
     return jsonify({
-        "status":  "UnMask API running ✅",
-        "version": "2.0",
-        "model":   "EfficientNetB0 Multidomain"
+        'status':       'ok',
+        'model_loaded': model is not None
     })
 
 
+# =============================
+# IMAGE ANALYSIS
+# =============================
 @app.route('/analyze/image', methods=['POST'])
 def analyze_image():
+    if model is None:
+        return jsonify({'error': 'Model not loaded'}), 503
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
     try:
-        file = request.files['file']
+        file  = request.files['file']
         npimg = np.frombuffer(file.read(), np.uint8)
-        img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+        img   = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+        if img is None:
+            return jsonify({'error': 'Could not decode image. Check file format.'}), 400
+
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         face, face_count = preprocess_face(img)
 
-        # Run 3 times and average for stability
-        scores = [float(model.predict(face, verbose=0)[0][0])
-                  for _ in range(3)]
-        score = float(np.mean(scores))
+        scores = [float(model.predict(face, verbose=0)[0][0]) for _ in range(3)]
+        score  = float(np.mean(scores))
 
-        # {'fake': 0, 'real': 1} → score > 0.5 = REAL
-        verdict = "REAL" if score > 0.5 else "FAKE"
-        confidence = score if score > 0.5 else (1 - score)
+        verdict    = 'REAL' if score > 0.9 else 'FAKE'
+        confidence = score if score > 0.9 else (1 - score)
 
         return jsonify({
-            "verdict":     verdict,
-            "confidence":  round(confidence * 100, 1),
-            "raw_score":   round(score, 4),
-            "faces_found": face_count,
-            "model":       "EfficientNetB0"
+            'verdict':     verdict,
+            'confidence':  round(confidence * 100, 1),
+            'raw_score':   round(score, 4),
+            'faces_found': face_count,
+            'model':       'EfficientNetB0'
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
+# =============================
+# VIDEO ANALYSIS
+# =============================
 @app.route('/analyze/video', methods=['POST'])
 def analyze_video():
+    if model is None:
+        return jsonify({'error': 'Model not loaded'}), 503
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    temp_path = f'temp_{uuid.uuid4().hex}.mp4'
+
     try:
         file = request.files['file']
-        temp_path = 'temp_video.mp4'
         file.save(temp_path)
 
-        cap = cv2.VideoCapture(temp_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        results = []
+        cap       = cv2.VideoCapture(temp_path)
+        fps       = cap.get(cv2.CAP_PROP_FPS)
+        results   = []
         frame_num = 0
 
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
+
             if frame_num % 5 == 0:
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                rgb     = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 face, _ = preprocess_face(rgb)
-                score = float(model.predict(face, verbose=0)[0][0])
+                score   = float(model.predict(face, verbose=0)[0][0])
                 timestamp = round(frame_num / fps, 2) if fps > 0 else frame_num
                 results.append({
-                    "frame":     frame_num,
-                    "timestamp": timestamp,
-                    "score":     round(score, 4)
+                    'frame':     frame_num,
+                    'timestamp': timestamp,
+                    'score':     round(score, 4)
                 })
+
             frame_num += 1
 
         cap.release()
-        os.remove(temp_path)
 
         if not results:
-            return jsonify({"error": "No frames processed"}), 400
+            return jsonify({'error': 'No frames could be processed'}), 400
 
-        scores = [r["score"] for r in results]
+        scores    = [r['score'] for r in results]
         avg_score = float(np.mean(scores))
-        verdict = "REAL" if avg_score > 0.5 else "FAKE"
-        confidence = avg_score if avg_score > 0.5 else (1 - avg_score)
 
-        fake_frames = sum(1 for s in scores if s < 0.5)
+        verdict    = 'REAL' if avg_score > 0.9 else 'FAKE'
+        confidence = avg_score if avg_score > 0.9 else (1 - avg_score)
+
+        fake_frames = sum(1 for s in scores if s <= 0.9)
         real_frames = len(scores) - fake_frames
 
         return jsonify({
-            "verdict":         verdict,
-            "confidence":      round(confidence * 100, 1),
-            "raw_score":       round(avg_score, 4),
-            "frames_analyzed": len(results),
-            "fake_frames":     fake_frames,
-            "real_frames":     real_frames,
-            "timeline":        [round((1-r["score"])*100, 1) for r in results],
-            "timestamps":      [r["timestamp"] for r in results]
+            'verdict':         verdict,
+            'confidence':      round(confidence * 100, 1),
+            'raw_score':       round(avg_score, 4),
+            'frames_analyzed': len(results),
+            'fake_frames':     fake_frames,
+            'real_frames':     real_frames
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
+# =============================
+# START SERVER
+# =============================
 if __name__ == '__main__':
     load_model()
-    app.run(debug=True, port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)

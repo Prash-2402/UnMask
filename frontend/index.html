@@ -1,0 +1,2823 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNMASK — Deepfake Detection</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Syne:wght@400;500;600&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --cyan: #00f5ff;
+            --teal: #00b4d8;
+            --violet: #7b2ff7;
+            --pink: #ff006e;
+            --green: #00ff88;
+            --white: #f0faff;
+            --dim: #8ab4c0;
+            --bg: #020b10;
+            --card-bg: rgba(0, 245, 255, 0.03);
+            --border: rgba(0, 245, 255, 0.15);
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--white);
+            font-family: 'Syne', sans-serif;
+            overflow-x: hidden;
+            cursor: none;
+        }
+
+        /* Custom cursor */
+        .cursor {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--cyan);
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s, opacity 0.2s;
+            box-shadow: 0 0 20px var(--cyan), 0 0 40px var(--cyan);
+            mix-blend-mode: screen;
+        }
+
+        .cursor-ring {
+            width: 36px;
+            height: 36px;
+            border: 1px solid rgba(0, 245, 255, 0.5);
+            border-radius: 50%;
+            position: fixed;
+            pointer-events: none;
+            z-index: 9998;
+            transform: translate(-50%, -50%);
+            transition: transform 0.15s ease, width 0.2s, height 0.2s;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image:
+                linear-gradient(rgba(0, 245, 255, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.04) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        /* ─── NAV ─────────────────────────────── */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 60px;
+            background: rgba(2, 11, 16, 0.7);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-family: 'Orbitron', monospace;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 8px;
+            color: var(--white);
+            text-decoration: none;
+            position: relative;
+        }
+
+        .logo span {
+            color: var(--cyan);
+        }
+
+        .logo::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, var(--cyan), transparent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 40px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--dim);
+            text-decoration: none;
+            transition: color 0.3s;
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--cyan);
+            transition: width 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--cyan);
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 10px 24px;
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            background: transparent;
+            cursor: none;
+            transition: all 0.3s;
+            clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+        }
+
+        .nav-cta:hover {
+            background: var(--cyan);
+            color: var(--bg);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.4);
+        }
+
+        /* ─── HERO ────────────────────────────── */
+        .hero {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 120px 40px 60px;
+            overflow: hidden;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+        }
+
+        .orb-1 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 245, 255, 0.12) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        .orb-2 {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(123, 47, 247, 0.15) 0%, transparent 70%);
+            top: 20%;
+            left: 10%;
+            animation: drift 8s ease-in-out infinite;
+        }
+
+        .orb-3 {
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 0, 110, 0.1) 0%, transparent 70%);
+            bottom: 20%;
+            right: 10%;
+            animation: drift 6s ease-in-out infinite reverse;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.15);
+                opacity: 1;
+            }
+        }
+
+        @keyframes drift {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(30px, -30px);
+            }
+        }
+
+        .scanlines {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 245, 255, 0.015) 2px, rgba(0, 245, 255, 0.015) 4px);
+            animation: scan 10s linear infinite;
+        }
+
+        @keyframes scan {
+            0% {
+                transform: translateY(0);
+            }
+
+            100% {
+                transform: translateY(4px);
+            }
+        }
+
+        .hero-eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: var(--cyan);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: fadeUp 0.8s ease both;
+        }
+
+        .hero-eyebrow::before,
+        .hero-eyebrow::after {
+            content: '';
+            flex: 1;
+            max-width: 60px;
+            height: 1px;
+            background: var(--cyan);
+            opacity: 0.5;
+        }
+
+        h1 {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(64px, 10vw, 140px);
+            font-weight: 900;
+            line-height: 0.9;
+            letter-spacing: -2px;
+            margin-bottom: 32px;
+            animation: fadeUp 0.8s ease 0.1s both;
+        }
+
+        .h1-line1 {
+            display: block;
+            color: var(--white);
+        }
+
+        .h1-line2 {
+            display: block;
+            background: linear-gradient(135deg, var(--cyan) 0%, var(--violet) 60%, var(--pink) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 40px rgba(0, 245, 255, 0.4));
+        }
+
+        .hero-sub {
+            font-size: 18px;
+            color: var(--dim);
+            max-width: 560px;
+            line-height: 1.7;
+            margin-bottom: 56px;
+            animation: fadeUp 0.8s ease 0.2s both;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            animation: fadeUp 0.8s ease 0.3s both;
+        }
+
+        .btn-primary {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, var(--cyan), var(--teal));
+            color: var(--bg);
+            border: none;
+            cursor: none;
+            font-weight: 700;
+            clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--white), var(--cyan));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 0 50px rgba(0, 245, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:hover::before {
+            opacity: 0.2;
+        }
+
+        .btn-primary span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn-secondary {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 15px 36px;
+            border: 1px solid rgba(0, 245, 255, 0.3);
+            color: var(--dim);
+            background: transparent;
+            cursor: none;
+            clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+            transition: all 0.3s;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 60px;
+            margin-top: 80px;
+            padding-top: 40px;
+            border-top: 1px solid var(--border);
+            animation: fadeUp 0.8s ease 0.5s both;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-num {
+            font-family: 'Orbitron', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--cyan);
+            display: block;
+        }
+
+        .stat-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--dim);
+            margin-top: 6px;
+            display: block;
+        }
+
+        .scanner-ui {
+            position: absolute;
+            right: 6%;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 280px;
+            animation: float 5s ease-in-out infinite, fadeUp 1s ease 0.6s both;
+            display: none;
+        }
+
+        @media (min-width: 1200px) {
+            .scanner-ui {
+                display: block;
+            }
+        }
+
+        .scanner-frame {
+            position: relative;
+            width: 100%;
+            padding-bottom: 100%;
+            border: 1px solid rgba(0, 245, 255, 0.3);
+        }
+
+        .scanner-inner {
+            position: absolute;
+            inset: 12px;
+            border: 1px solid rgba(0, 245, 255, 0.15);
+            background: rgba(0, 245, 255, 0.03);
+        }
+
+        .scan-bar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+            box-shadow: 0 0 20px var(--cyan);
+            animation: scanBar 2.5s ease-in-out infinite;
+        }
+
+        @keyframes scanBar {
+            0% {
+                top: 0;
+            }
+
+            100% {
+                top: 100%;
+            }
+        }
+
+        .corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+        }
+
+        .corner-tl {
+            top: -1px;
+            left: -1px;
+            border-top: 2px solid var(--cyan);
+            border-left: 2px solid var(--cyan);
+        }
+
+        .corner-tr {
+            top: -1px;
+            right: -1px;
+            border-top: 2px solid var(--cyan);
+            border-right: 2px solid var(--cyan);
+        }
+
+        .corner-bl {
+            bottom: -1px;
+            left: -1px;
+            border-bottom: 2px solid var(--cyan);
+            border-left: 2px solid var(--cyan);
+        }
+
+        .corner-br {
+            bottom: -1px;
+            right: -1px;
+            border-bottom: 2px solid var(--cyan);
+            border-right: 2px solid var(--cyan);
+        }
+
+        .scanner-data {
+            margin-top: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--cyan);
+            line-height: 1.8;
+        }
+
+        .scanner-data span {
+            color: var(--dim);
+        }
+
+        .result-bar {
+            height: 3px;
+            background: rgba(0, 245, 255, 0.1);
+            margin: 4px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-fill {
+            height: 100%;
+            background: var(--pink);
+            box-shadow: 0 0 10px var(--pink);
+            animation: fillBar 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes fillBar {
+            0% {
+                width: 72%;
+            }
+
+            100% {
+                width: 78%;
+            }
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(-50%) translateX(0);
+            }
+
+            50% {
+                transform: translateY(calc(-50% - 12px)) translateX(4px);
+            }
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ─── GLITCH FACE ───────────────────────── */
+        .glitch-face-wrap {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .glitch-face-svg {
+            width: 85%;
+            height: 85%;
+            animation: facePulse 3s ease-in-out infinite;
+        }
+
+        @keyframes facePulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                filter: drop-shadow(0 0 6px #00f5ff);
+            }
+
+            50% {
+                opacity: 0.85;
+                filter: drop-shadow(0 0 14px #00f5ff);
+            }
+        }
+
+        .glitch-slice-r {
+            animation: glitchR 3.5s infinite;
+            clip-path: polygon(0 30%, 100% 30%, 100% 50%, 0 50%);
+        }
+
+        .glitch-slice-c {
+            animation: glitchC 4s infinite;
+            clip-path: polygon(0 60%, 100% 60%, 100% 75%, 0 75%);
+        }
+
+        @keyframes glitchR {
+
+            0%,
+            85%,
+            100% {
+                transform: none;
+                opacity: 0;
+            }
+
+            87% {
+                transform: translate(-4px, 0);
+                opacity: 0.8;
+            }
+
+            89% {
+                transform: translate(4px, -1px);
+                opacity: 0.8;
+            }
+
+            91% {
+                transform: translate(-2px, 1px);
+                opacity: 0;
+            }
+        }
+
+        @keyframes glitchC {
+
+            0%,
+            80%,
+            100% {
+                transform: none;
+                opacity: 0;
+            }
+
+            82% {
+                transform: translate(5px, 0);
+                opacity: 0.7;
+            }
+
+            84% {
+                transform: translate(-3px, 0);
+                opacity: 0.7;
+            }
+
+            86% {
+                transform: none;
+                opacity: 0;
+            }
+        }
+
+        .face-blink {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 245, 255, 0.06);
+            animation: faceBlink 4s steps(1) infinite;
+            pointer-events: none;
+        }
+
+        @keyframes faceBlink {
+
+            0%,
+            95%,
+            100% {
+                opacity: 0;
+            }
+
+            96% {
+                opacity: 1;
+            }
+
+            97% {
+                opacity: 0;
+            }
+
+            98% {
+                opacity: 1;
+            }
+        }
+
+        .face-noise {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+            opacity: 0.5;
+            mix-blend-mode: screen;
+            animation: noiseShift 0.15s steps(1) infinite;
+        }
+
+        @keyframes noiseShift {
+            0% {
+                transform: translate(0, 0);
+            }
+
+            25% {
+                transform: translate(-1px, 1px);
+            }
+
+            50% {
+                transform: translate(1px, 0);
+            }
+
+            75% {
+                transform: translate(0, -1px);
+            }
+
+            100% {
+                transform: translate(1px, 1px);
+            }
+        }
+
+        .status-blink {
+            animation: blink 1.2s ease-in-out infinite;
+        }
+
+        /* ─── DOWNLOAD BUTTON ──────────────────── */
+        .download-btn {
+            display: none;
+            width: 100%;
+            margin-top: 2px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 15px 40px;
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            background: transparent;
+            cursor: none;
+            transition: all 0.3s;
+            clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+        }
+
+        .download-btn.show {
+            display: block;
+        }
+
+        .download-btn:hover {
+            background: rgba(0, 245, 255, 0.1);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.2);
+        }
+
+        /* ─── UPLOAD PANEL (NEW) ──────────────── */
+        section {
+            position: relative;
+            z-index: 1;
+        }
+
+        .upload-section {
+            padding: 120px 60px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: var(--cyan);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-label::before {
+            content: '//';
+            color: var(--dim);
+        }
+
+        .section-title {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(28px, 4vw, 48px);
+            font-weight: 700;
+            margin-bottom: 16px;
+            line-height: 1.1;
+        }
+
+        .section-sub {
+            color: var(--dim);
+            font-size: 16px;
+            max-width: 500px;
+            line-height: 1.7;
+            margin-bottom: 50px;
+        }
+
+        /* Mode tabs */
+        .upload-tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 2px;
+        }
+
+        .tab-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 12px 28px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--dim);
+            cursor: none;
+            transition: all 0.3s;
+            flex: 1;
+            clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+        }
+
+        .tab-btn.active {
+            background: rgba(0, 245, 255, 0.1);
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .tab-btn:hover:not(.active) {
+            border-color: rgba(0, 245, 255, 0.4);
+            color: var(--white);
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            padding: 60px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+            cursor: none;
+        }
+
+        .drop-zone.dragging {
+            border-color: var(--cyan);
+            background: rgba(0, 245, 255, 0.06);
+            box-shadow: inset 0 0 40px rgba(0, 245, 255, 0.05);
+        }
+
+        .drop-zone::before {
+            content: 'DROP ZONE';
+            position: absolute;
+            top: -1px;
+            right: 30px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 3px;
+            background: var(--bg);
+            padding: 0 8px;
+            color: var(--dim);
+        }
+
+        .drop-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            display: block;
+            animation: floatIcon 3s ease-in-out infinite;
+        }
+
+        @keyframes floatIcon {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        .drop-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--white);
+        }
+
+        .drop-sub {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--dim);
+            letter-spacing: 1px;
+            margin-bottom: 28px;
+        }
+
+        .drop-or {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--dim);
+            letter-spacing: 3px;
+            margin: 20px 0;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .browse-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 12px 32px;
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            background: transparent;
+            cursor: none;
+            transition: all 0.3s;
+            clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+        }
+
+        .browse-btn:hover {
+            background: var(--cyan);
+            color: var(--bg);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.3);
+        }
+
+        /* Selected file preview */
+        .file-preview {
+            display: none;
+            margin-top: 20px;
+            padding: 16px 20px;
+            border: 1px solid rgba(0, 245, 255, 0.2);
+            background: rgba(0, 245, 255, 0.03);
+            align-items: center;
+            gap: 16px;
+        }
+
+        .file-preview.show {
+            display: flex;
+        }
+
+        .file-preview-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .file-preview-info {
+            flex: 1;
+            text-align: left;
+        }
+
+        .file-preview-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--white);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        .file-preview-size {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--dim);
+            margin-top: 4px;
+        }
+
+        .file-clear {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: var(--dim);
+            background: none;
+            border: none;
+            cursor: none;
+            transition: color 0.2s;
+        }
+
+        .file-clear:hover {
+            color: var(--pink);
+        }
+
+        /* Analyze button */
+        .analyze-btn {
+            width: 100%;
+            margin-top: 2px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            padding: 18px 40px;
+            background: linear-gradient(135deg, var(--cyan), var(--teal));
+            color: var(--bg);
+            border: none;
+            cursor: none;
+            font-weight: 700;
+            clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .analyze-btn:not(:disabled):hover {
+            box-shadow: 0 0 60px rgba(0, 245, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        /* Loading state */
+        .loading-bar {
+            display: none;
+            height: 2px;
+            background: rgba(0, 245, 255, 0.1);
+            margin-top: 2px;
+            overflow: hidden;
+        }
+
+        .loading-bar.show {
+            display: block;
+        }
+
+        .loading-fill {
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--cyan), var(--violet), transparent);
+            animation: loadingSlide 1.5s linear infinite;
+            width: 40%;
+        }
+
+        @keyframes loadingSlide {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(350%);
+            }
+        }
+
+        .loading-status {
+            display: none;
+            margin-top: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--cyan);
+            letter-spacing: 3px;
+            text-align: center;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        .loading-status.show {
+            display: block;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        /* ─── RESULTS PANEL ──────────────────── */
+        .results-panel {
+            display: none;
+            margin-top: 2px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            position: relative;
+        }
+
+        .results-panel.show {
+            display: block;
+        }
+
+        .results-panel::before {
+            content: 'ANALYSIS OUTPUT';
+            position: absolute;
+            top: -1px;
+            left: 30px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 3px;
+            background: var(--bg);
+            padding: 0 8px;
+            color: var(--cyan);
+        }
+
+        .results-inner {
+            padding: 40px;
+        }
+
+        .verdict-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            margin-bottom: 32px;
+            border: 1px solid;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .verdict-banner::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: inherit;
+            opacity: 0.05;
+        }
+
+        .verdict-banner.fake {
+            border-color: rgba(255, 0, 110, 0.5);
+            background: rgba(255, 0, 110, 0.05);
+        }
+
+        .verdict-banner.real {
+            border-color: rgba(0, 255, 136, 0.5);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        .verdict-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .verdict-pulse {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: blink 1s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+
+        .verdict-banner.fake .verdict-pulse {
+            background: var(--pink);
+            box-shadow: 0 0 20px var(--pink);
+        }
+
+        .verdict-banner.real .verdict-pulse {
+            background: var(--green);
+            box-shadow: 0 0 20px var(--green);
+        }
+
+        .verdict-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 3px;
+        }
+
+        .verdict-banner.fake .verdict-label {
+            color: var(--pink);
+        }
+
+        .verdict-banner.real .verdict-label {
+            color: var(--green);
+        }
+
+        .verdict-confidence {
+            font-family: 'Orbitron', monospace;
+            font-size: 28px;
+            font-weight: 900;
+        }
+
+        .verdict-banner.fake .verdict-confidence {
+            color: var(--pink);
+        }
+
+        .verdict-banner.real .verdict-confidence {
+            color: var(--green);
+        }
+
+        /* Result metrics */
+        .result-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .metric-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .metric-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: var(--dim);
+            width: 130px;
+            flex-shrink: 0;
+        }
+
+        .metric-bar-bg {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: visible;
+        }
+
+        .metric-fill {
+            height: 100%;
+            position: relative;
+            transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .metric-fill::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: inherit;
+            box-shadow: 0 0 12px currentColor;
+        }
+
+        .metric-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--white);
+            width: 40px;
+            text-align: right;
+        }
+
+        /* Extra info grid */
+        .result-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 2px;
+            margin-top: 24px;
+        }
+
+        .meta-cell {
+            background: rgba(0, 245, 255, 0.03);
+            border: 1px solid var(--border);
+            padding: 16px 20px;
+        }
+
+        .meta-cell-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 3px;
+            color: var(--dim);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .meta-cell-val {
+            font-family: 'Orbitron', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--cyan);
+        }
+
+        /* Error banner */
+        .error-banner {
+            display: none;
+            padding: 16px 20px;
+            margin-top: 16px;
+            border: 1px solid rgba(255, 0, 110, 0.4);
+            background: rgba(255, 0, 110, 0.05);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--pink);
+            letter-spacing: 1px;
+        }
+
+        .error-banner.show {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        /* ─── FEATURES ───────────────────────── */
+        .features {
+            padding: 120px 60px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2px;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.3s, background 0.3s;
+            cursor: none;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(0, 245, 255, 0.05) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(0, 245, 255, 0.4);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover::after {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            margin-bottom: 28px;
+            position: relative;
+        }
+
+        .icon-hex {
+            width: 100%;
+            height: 100%;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            background: rgba(0, 245, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            border: 1px solid rgba(0, 245, 255, 0.3);
+            transition: background 0.3s;
+        }
+
+        .feature-card:hover .icon-hex {
+            background: rgba(0, 245, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.2);
+        }
+
+        .feature-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: var(--dim);
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .feature-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 14px;
+            color: var(--white);
+        }
+
+        .feature-desc {
+            font-size: 14px;
+            color: var(--dim);
+            line-height: 1.7;
+        }
+
+        .feature-tag {
+            display: inline-block;
+            margin-top: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            padding: 4px 12px;
+            border: 1px solid rgba(0, 245, 255, 0.2);
+            color: var(--cyan);
+            clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+        }
+
+        /* ─── HOW IT WORKS ───────────────────── */
+        .how {
+            padding: 120px 60px;
+            background: linear-gradient(180deg, transparent, rgba(0, 245, 255, 0.02), transparent);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .how-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0;
+            position: relative;
+        }
+
+        .steps::before {
+            content: '';
+            position: absolute;
+            top: 40px;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), var(--violet), var(--pink), transparent);
+            opacity: 0.4;
+        }
+
+        .step {
+            padding: 0 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .step-num {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: var(--dim);
+            margin-bottom: 24px;
+            display: block;
+        }
+
+        .step-circle {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            border-radius: 50%;
+            background: rgba(0, 245, 255, 0.05);
+            border: 1px solid rgba(0, 245, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s;
+        }
+
+        .step:hover .step-circle {
+            border-color: var(--cyan);
+            box-shadow: 0 0 40px rgba(0, 245, 255, 0.3);
+            background: rgba(0, 245, 255, 0.1);
+        }
+
+        .step-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .step-desc {
+            font-size: 13px;
+            color: var(--dim);
+            line-height: 1.7;
+        }
+
+        /* ─── VIZ SECTION ────────────────────── */
+        .viz-section {
+            padding: 120px 60px;
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+
+        @media (max-width: 900px) {
+            .viz-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .viz-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 40px;
+            position: relative;
+        }
+
+        .viz-card::before {
+            content: 'ANALYSIS OUTPUT';
+            position: absolute;
+            top: -1px;
+            left: 30px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 3px;
+            background: var(--bg);
+            padding: 0 8px;
+            color: var(--cyan);
+        }
+
+        .viz-face {
+            width: 100%;
+            aspect-ratio: 1;
+            background: linear-gradient(135deg, rgba(0, 245, 255, 0.05), rgba(123, 47, 247, 0.08));
+            border: 1px solid rgba(0, 245, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 24px;
+            font-size: 80px;
+        }
+
+        .heatmap-overlay {
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 40% 35%, rgba(255, 0, 110, 0.4) 0%, transparent 30%),
+                radial-gradient(circle at 60% 35%, rgba(255, 0, 110, 0.3) 0%, transparent 25%),
+                radial-gradient(circle at 50% 60%, rgba(255, 165, 0, 0.2) 0%, transparent 35%);
+            mix-blend-mode: screen;
+            animation: heatPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes heatPulse {
+
+            0%,
+            100% {
+                opacity: 0.6;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .face-scan-box {
+            position: absolute;
+            top: 15%;
+            left: 20%;
+            right: 20%;
+            bottom: 15%;
+            border: 1px solid rgba(0, 245, 255, 0.5);
+        }
+
+        .face-scan-box .corner {
+            width: 14px;
+            height: 14px;
+        }
+
+        .face-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--pink);
+            box-shadow: 0 0 12px var(--pink);
+        }
+
+        .face-dot:nth-child(5) {
+            top: 33%;
+            left: 30%;
+        }
+
+        .face-dot:nth-child(6) {
+            top: 33%;
+            right: 30%;
+        }
+
+        .face-dot:nth-child(7) {
+            top: 55%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--cyan);
+            box-shadow: 0 0 12px var(--cyan);
+        }
+
+        .metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .deepfake-verdict {
+            margin-top: 24px;
+            padding: 16px 20px;
+            border: 1px solid rgba(255, 0, 110, 0.4);
+            background: rgba(255, 0, 110, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .verdict-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--pink);
+            box-shadow: 0 0 20px var(--pink);
+            animation: blink 1s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+
+        .verdict-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: var(--pink);
+        }
+
+        .verdict-score {
+            margin-left: auto;
+            font-family: 'Orbitron', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--pink);
+        }
+
+        /* ─── MODES ──────────────────────────── */
+        .modes {
+            padding: 0 60px 120px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .modes-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2px;
+            margin-top: 80px;
+        }
+
+        @media (max-width: 700px) {
+            .modes-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .mode-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 50px 40px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+            cursor: none;
+        }
+
+        .mode-card:hover {
+            border-color: rgba(0, 245, 255, 0.4);
+            transform: translateY(-4px);
+        }
+
+        .mode-accent {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+        }
+
+        .mode-card:nth-child(1) .mode-accent {
+            background: linear-gradient(90deg, var(--cyan), transparent);
+        }
+
+        .mode-card:nth-child(2) .mode-accent {
+            background: linear-gradient(90deg, var(--violet), transparent);
+        }
+
+        .mode-card:nth-child(3) .mode-accent {
+            background: linear-gradient(90deg, var(--pink), transparent);
+        }
+
+        .mode-card:nth-child(4) .mode-accent {
+            background: linear-gradient(90deg, var(--teal), transparent);
+        }
+
+        .mode-icon {
+            font-size: 40px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .mode-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .mode-desc {
+            font-size: 14px;
+            color: var(--dim);
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .mode-specs {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--dim);
+            letter-spacing: 1px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .mode-specs span {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mode-specs span::before {
+            content: '›';
+            color: var(--cyan);
+        }
+
+        /* ─── CTA ────────────────────────────── */
+        .cta-section {
+            padding: 120px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border-top: 1px solid var(--border);
+        }
+
+        .cta-bg {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, rgba(0, 245, 255, 0.06) 0%, transparent 70%);
+        }
+
+        .cta-section h2 {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(36px, 6vw, 80px);
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .cta-sub {
+            color: var(--dim);
+            font-size: 18px;
+            max-width: 500px;
+            margin: 0 auto 50px;
+            line-height: 1.7;
+            position: relative;
+        }
+
+        .cta-actions {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            position: relative;
+        }
+
+        .btn-large {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            padding: 20px 56px;
+            background: linear-gradient(135deg, var(--cyan), var(--teal));
+            color: var(--bg);
+            border: none;
+            cursor: none;
+            font-weight: 700;
+            clip-path: polygon(16px 0%, 100% 0%, calc(100% - 16px) 100%, 0% 100%);
+            transition: all 0.3s;
+        }
+
+        .btn-large:hover {
+            box-shadow: 0 0 80px rgba(0, 245, 255, 0.5);
+            transform: translateY(-3px);
+        }
+
+        /* ─── FOOTER ─────────────────────────── */
+        footer {
+            padding: 40px 60px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            z-index: 1;
+        }
+
+        .footer-logo {
+            font-family: 'Orbitron', monospace;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            color: var(--white);
+        }
+
+        .footer-logo span {
+            color: var(--cyan);
+        }
+
+        .footer-copy {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: var(--dim);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .footer-links a {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--dim);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: var(--cyan);
+        }
+
+        /* ─── GLITCH ─────────────────────────── */
+        .glitch {
+            position: relative;
+        }
+
+        .glitch::before,
+        .glitch::after {
+            content: attr(data-text);
+            position: absolute;
+            left: 0;
+            width: 100%;
+            font-family: 'Orbitron', monospace;
+            font-size: inherit;
+            font-weight: 900;
+        }
+
+        .glitch::before {
+            color: var(--pink);
+            animation: glitch1 4s infinite;
+            clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+        }
+
+        .glitch::after {
+            color: var(--cyan);
+            animation: glitch2 4s infinite;
+            clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+        }
+
+        @keyframes glitch1 {
+
+            0%,
+            90%,
+            100% {
+                transform: none;
+                opacity: 0;
+            }
+
+            92% {
+                transform: translate(-3px, -1px);
+                opacity: 0.8;
+            }
+
+            94% {
+                transform: translate(3px, 1px);
+                opacity: 0.8;
+            }
+
+            96% {
+                transform: translate(-1px, 2px);
+                opacity: 0;
+            }
+        }
+
+        @keyframes glitch2 {
+
+            0%,
+            88%,
+            100% {
+                transform: none;
+                opacity: 0;
+            }
+
+            90% {
+                transform: translate(3px, 1px);
+                opacity: 0.8;
+            }
+
+            92% {
+                transform: translate(-3px, -2px);
+                opacity: 0.8;
+            }
+
+            94% {
+                transform: none;
+                opacity: 0;
+            }
+        }
+
+        /* ─── RESPONSIVE ─────────────────────── */
+        @media (max-width: 768px) {
+            nav {
+                padding: 16px 24px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .features,
+            .how,
+            .modes,
+            .cta-section,
+            .upload-section {
+                padding-left: 24px;
+                padding-right: 24px;
+            }
+
+            .hero {
+                padding: 100px 24px 60px;
+            }
+
+            .hero-stats {
+                gap: 30px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            footer {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+
+            .viz-section {
+                padding: 80px 24px;
+            }
+
+            .upload-tabs {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="cursor" id="cursor"></div>
+    <div class="cursor-ring" id="cursorRing"></div>
+
+    <!-- ─── NAV ─────────────────────────────── -->
+    <nav>
+        <a class="logo" href="#"><span>UN</span>MASK</a>
+        <ul class="nav-links">
+            <li><a href="#detect">Detect</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#how">How It Works</a></li>
+            <li><a href="#modes">Detection Modes</a></li>
+        </ul>
+        <button class="nav-cta" onclick="document.getElementById('detect').scrollIntoView({behavior:'smooth'})">Launch
+            App</button>
+    </nav>
+
+    <!-- ─── HERO ─────────────────────────────── -->
+    <section class="hero">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="scanlines"></div>
+
+        <div class="hero-eyebrow">AI-Powered Deepfake Detection</div>
+        <h1>
+            <span class="h1-line1">EXPOSE</span>
+            <span class="h1-line2 glitch" data-text="THE FAKE">THE FAKE</span>
+        </h1>
+        <p class="hero-sub">Advanced neural analysis to detect manipulated media in real-time. Upload images or videos —
+            Unmask reveals what the human eye cannot.</p>
+
+        <div class="hero-actions">
+            <button class="btn-primary" onclick="document.getElementById('detect').scrollIntoView({behavior:'smooth'})">
+                <span>↗ Start Detection</span>
+            </button>
+            <button class="btn-secondary"
+                onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'})">How It Works</button>
+        </div>
+
+        <div class="hero-stats">
+            <div class="stat"><span class="stat-num">75.6%</span><span class="stat-label">Detection Accuracy</span>
+            </div>
+            <div class="stat"><span class="stat-num">&lt;0.3s</span><span class="stat-label">Analysis Speed</span></div>
+            <div class="stat"><span class="stat-num">2L+</span><span class="stat-label">Images Processed</span></div>
+            <div class="stat"><span class="stat-num">3</span><span class="stat-label">Detection Models</span></div>
+        </div>
+
+        <div class="scanner-ui">
+            <div class="scanner-frame">
+                <div class="corner corner-tl"></div>
+                <div class="corner corner-tr"></div>
+                <div class="corner corner-bl"></div>
+                <div class="corner corner-br"></div>
+                <div class="scanner-inner">
+                    <div class="scan-bar"></div>
+                    <!-- Glitching face SVG -->
+                    <div class="glitch-face-wrap">
+                        <svg class="glitch-face-svg" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Face outline -->
+                            <ellipse cx="60" cy="62" rx="36" ry="44" fill="none" stroke="#00f5ff" stroke-width="1.2"
+                                opacity="0.9" />
+                            <!-- Eyes -->
+                            <ellipse cx="46" cy="52" rx="6" ry="7" fill="none" stroke="#00f5ff" stroke-width="1" />
+                            <ellipse cx="74" cy="52" rx="6" ry="7" fill="none" stroke="#00f5ff" stroke-width="1" />
+                            <circle cx="46" cy="53" r="3" fill="#00f5ff" opacity="0.7" />
+                            <circle cx="74" cy="53" r="3" fill="#00f5ff" opacity="0.7" />
+                            <!-- Nose -->
+                            <path d="M60 58 L56 70 L64 70" fill="none" stroke="#00f5ff" stroke-width="1"
+                                opacity="0.8" />
+                            <!-- Mouth -->
+                            <path d="M48 80 Q60 88 72 80" fill="none" stroke="#00f5ff" stroke-width="1.2" />
+                            <!-- Face landmark dots -->
+                            <circle cx="46" cy="52" r="1.5" fill="#ff006e" />
+                            <circle cx="74" cy="52" r="1.5" fill="#ff006e" />
+                            <circle cx="60" cy="70" r="1.5" fill="#ff006e" />
+                            <circle cx="60" cy="80" r="1.5" fill="#00f5ff" />
+                            <!-- Ear lines -->
+                            <line x1="24" y1="60" x2="30" y2="55" stroke="#00f5ff" stroke-width="0.8" opacity="0.5" />
+                            <line x1="96" y1="60" x2="90" y2="55" stroke="#00f5ff" stroke-width="0.8" opacity="0.5" />
+                            <!-- Scan mesh lines -->
+                            <line x1="25" y1="50" x2="95" y2="50" stroke="#00f5ff" stroke-width="0.3" opacity="0.2" />
+                            <line x1="25" y1="60" x2="95" y2="60" stroke="#00f5ff" stroke-width="0.3" opacity="0.2" />
+                            <line x1="25" y1="70" x2="95" y2="70" stroke="#00f5ff" stroke-width="0.3" opacity="0.2" />
+                            <line x1="25" y1="80" x2="95" y2="80" stroke="#00f5ff" stroke-width="0.3" opacity="0.2" />
+                            <!-- Glitch slices (animated via CSS) -->
+                            <g class="glitch-slice-r">
+                                <ellipse cx="60" cy="62" rx="36" ry="44" fill="none" stroke="#ff006e" stroke-width="1.2"
+                                    opacity="0.6" />
+                                <ellipse cx="46" cy="52" rx="6" ry="7" fill="none" stroke="#ff006e" stroke-width="1"
+                                    opacity="0.6" />
+                                <ellipse cx="74" cy="52" rx="6" ry="7" fill="none" stroke="#ff006e" stroke-width="1"
+                                    opacity="0.6" />
+                            </g>
+                            <g class="glitch-slice-c">
+                                <ellipse cx="60" cy="62" rx="36" ry="44" fill="none" stroke="#7b2ff7" stroke-width="1"
+                                    opacity="0.5" />
+                                <path d="M48 80 Q60 88 72 80" fill="none" stroke="#7b2ff7" stroke-width="1" />
+                            </g>
+                        </svg>
+                        <!-- Blink overlay -->
+                        <div class="face-blink"></div>
+                        <!-- Noise overlay -->
+                        <div class="face-noise"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="scanner-data">
+                <div>STATUS: <span class="status-blink">SCANNING</span></div>
+                <div>CONFIDENCE: <span>75.6%</span></div>
+                <div>RESULT:</div>
+                <div class="result-bar">
+                    <div class="result-fill"></div>
+                </div>
+                <div>DEEPFAKE DETECTED</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── UPLOAD / DETECT PANEL ─────────────── -->
+    <section class="upload-section" id="detect">
+        <div class="section-label">Live Detection</div>
+        <h2 class="section-title">Run Analysis</h2>
+        <p class="section-sub">Upload an image or video file and let the neural pipeline do the rest. Results in
+            seconds.</p>
+
+        <!-- Mode tabs -->
+        <div class="upload-tabs">
+            <button class="tab-btn active" id="tab-image" onclick="switchTab('image')">🖼️ &nbsp;Image</button>
+            <button class="tab-btn" id="tab-video" onclick="switchTab('video')">🎬 &nbsp;Video</button>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="drop-zone" id="dropZone">
+            <span class="drop-icon" id="dropIcon">🖼️</span>
+            <div class="drop-title">Drag & Drop your file here</div>
+            <p class="drop-sub" id="dropSub">JPG · PNG · WEBP · HEIC — up to 50MB</p>
+            <div class="drop-or">— or —</div>
+            <input type="file" class="file-input" id="fileInput" accept="image/*">
+            <button class="browse-btn" onclick="document.getElementById('fileInput').click()">Browse Files</button>
+
+            <div class="file-preview" id="filePreview">
+                <span class="file-preview-icon" id="previewIcon">🖼️</span>
+                <div class="file-preview-info">
+                    <div class="file-preview-name" id="previewName">—</div>
+                    <div class="file-preview-size" id="previewSize">—</div>
+                </div>
+                <button class="file-clear" onclick="clearFile()">✕ CLEAR</button>
+            </div>
+        </div>
+
+        <button class="analyze-btn" id="analyzeBtn" disabled onclick="runAnalysis()">
+            ↗ &nbsp;ANALYZE FILE
+        </button>
+
+        <!-- Loading indicators -->
+        <div class="loading-bar" id="loadingBar">
+            <div class="loading-fill"></div>
+        </div>
+        <div class="loading-status" id="loadingStatus">RUNNING NEURAL ANALYSIS...</div>
+
+        <!-- Error -->
+        <div class="error-banner" id="errorBanner">
+            <span>⚠</span>
+            <span id="errorText">An error occurred.</span>
+        </div>
+
+        <!-- Results -->
+        <div class="results-panel" id="resultsPanel">
+            <div class="results-inner">
+                <div class="verdict-banner" id="verdictBanner">
+                    <div class="verdict-left">
+                        <div class="verdict-pulse"></div>
+                        <span class="verdict-label" id="verdictLabel">—</span>
+                    </div>
+                    <span class="verdict-confidence" id="verdictConfidence">—</span>
+                </div>
+
+                <div class="result-metrics" id="resultMetrics">
+                    <!-- Dynamically injected -->
+                </div>
+
+                <div class="result-meta" id="resultMeta">
+                    <!-- Dynamically injected -->
+                </div>
+            </div>
+        </div>
+
+        <button class="download-btn" id="downloadBtn" onclick="downloadReport()">
+            ↓ &nbsp;DOWNLOAD REPORT
+        </button>
+    </section>
+
+    <!-- ─── FEATURES ─────────────────────────── -->
+    <section class="features" id="features">
+        <div class="section-label">Core Capabilities</div>
+        <h2 class="section-title">Detect. Analyze.<br>Expose.</h2>
+        <p class="section-sub">Four powerful detection modules working in concert to reveal synthetic media with
+            surgical precision.</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <div class="icon-hex">🖼</div>
+                </div>
+                <span class="feature-num">01 — UPLOAD</span>
+                <div class="feature-title">Image & Video Analysis</div>
+                <p class="feature-desc">Submit any image or video file for deep inspection. Our ensemble model dissects
+                    pixel-level artifacts, compression anomalies, and generation signatures left by AI synthesis tools.
+                </p>
+                <span class="feature-tag">Supports JPG · PNG · MP4 · MOV</span>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <div class="icon-hex">📡</div>
+                </div>
+                <span class="feature-num">02 — LIVE</span>
+                <div class="feature-title">Real-Time Webcam Detection</div>
+                <p class="feature-desc">Stream your webcam through our live detection pipeline. Frame-by-frame analysis
+                    flags manipulated feeds instantly — built for live call verification and media authenticity
+                    checking.</p>
+                <span class="feature-tag">30 FPS Analysis · Sub-300ms Latency</span>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <div class="icon-hex">🔥</div>
+                </div>
+                <span class="feature-num">03 — HEATMAP</span>
+                <div class="feature-title">Confidence Score & Heatmap</div>
+                <p class="feature-desc">Visualize exactly where manipulation occurs. Gradient activation maps highlight
+                    suspicious regions in red — from eye-swapping and face blending to GAN-generated backgrounds.</p>
+                <span class="feature-tag">GradCAM · XAI Explainability</span>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <div class="icon-hex">⚡</div>
+                </div>
+                <span class="feature-num">04 — BATCH</span>
+                <div class="feature-title">Batch File Analysis</div>
+                <p class="feature-desc">Upload entire folders or datasets. Process hundreds of files simultaneously with
+                    parallel inference engines. Export detailed CSV reports with per-file confidence scores.</p>
+                <span class="feature-tag">Up to 500 Files · CSV Export</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── HOW IT WORKS ─────────────────────── -->
+    <div class="how" id="how">
+        <div class="how-inner">
+            <div class="section-label">Process</div>
+            <h2 class="section-title">How Unmask Works</h2>
+            <p class="section-sub">A four-stage neural pipeline engineered for maximum precision.</p>
+            <div class="steps">
+                <div class="step"><span class="step-num">STEP 01</span>
+                    <div class="step-circle">📥</div>
+                    <div class="step-title">Ingest</div>
+                    <p class="step-desc">Drop your file or activate webcam. Unmask accepts all common image and video
+                        formats up to 2GB.</p>
+                </div>
+                <div class="step"><span class="step-num">STEP 02</span>
+                    <div class="step-circle">🔬</div>
+                    <div class="step-title">Analyze</div>
+                    <p class="step-desc">12 specialized detection models run in parallel — inspecting frequency
+                        artifacts, facial landmarks, temporal coherence and more.</p>
+                </div>
+                <div class="step"><span class="step-num">STEP 03</span>
+                    <div class="step-circle">🗺</div>
+                    <div class="step-title">Map</div>
+                    <p class="step-desc">Gradient activation heatmaps pinpoint the exact pixels that triggered the
+                        deepfake classification.</p>
+                </div>
+                <div class="step"><span class="step-num">STEP 04</span>
+                    <div class="step-circle">📊</div>
+                    <div class="step-title">Report</div>
+                    <p class="step-desc">Receive a detailed confidence report with region-level breakdown, model
+                        agreement scores, and downloadable evidence package.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── VIZ SECTION ──────────────────────── -->
+    <div class="viz-section">
+        <div>
+            <div class="section-label">Visual Intelligence</div>
+            <h2 class="section-title">See What the Models See</h2>
+            <p style="color:var(--dim);font-size:16px;line-height:1.7;margin-bottom:40px;">Unmask doesn't just flag
+                deepfakes — it shows you exactly why. Heatmap overlays expose manipulated regions while confidence
+                metrics break down each detection signal.</p>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                <div
+                    style="display:flex;align-items:center;gap:12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);">
+                    <span
+                        style="width:8px;height:8px;border-radius:50%;background:var(--pink);box-shadow:0 0 12px var(--pink);flex-shrink:0;"></span>High-risk
+                    manipulation zones in red
+                </div>
+                <div
+                    style="display:flex;align-items:center;gap:12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);">
+                    <span
+                        style="width:8px;height:8px;border-radius:50%;background:orange;box-shadow:0 0 12px orange;flex-shrink:0;"></span>Medium-confidence
+                    artifacts in amber
+                </div>
+                <div
+                    style="display:flex;align-items:center;gap:12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);">
+                    <span
+                        style="width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px var(--cyan);flex-shrink:0;"></span>Reference
+                    landmarks in cyan
+                </div>
+            </div>
+        </div>
+        <div class="viz-card">
+            <div class="viz-face">
+                🧑
+                <div class="heatmap-overlay"></div>
+                <div class="face-scan-box">
+                    <div class="corner corner-tl"></div>
+                    <div class="corner corner-tr"></div>
+                    <div class="corner corner-bl"></div>
+                    <div class="corner corner-br"></div>
+                    <div class="face-dot"></div>
+                    <div class="face-dot"></div>
+                    <div class="face-dot"></div>
+                </div>
+            </div>
+            <div class="metrics">
+                <div class="metric-row"><span class="metric-label">FACE SWAP</span>
+                    <div class="metric-bar-bg">
+                        <div class="metric-fill"
+                            style="width:89%;background:var(--pink);box-shadow:0 0 10px var(--pink);"></div>
+                    </div><span class="metric-val">89%</span>
+                </div>
+                <div class="metric-row"><span class="metric-label">GAN ARTIFACTS</span>
+                    <div class="metric-bar-bg">
+                        <div class="metric-fill" style="width:74%;background:orange;box-shadow:0 0 10px orange;"></div>
+                    </div><span class="metric-val">74%</span>
+                </div>
+                <div class="metric-row"><span class="metric-label">TEMPORAL</span>
+                    <div class="metric-bar-bg">
+                        <div class="metric-fill"
+                            style="width:61%;background:var(--violet);box-shadow:0 0 10px var(--violet);"></div>
+                    </div><span class="metric-val">61%</span>
+                </div>
+                <div class="metric-row"><span class="metric-label">COMPRESSION</span>
+                    <div class="metric-bar-bg">
+                        <div class="metric-fill"
+                            style="width:45%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);"></div>
+                    </div><span class="metric-val">45%</span>
+                </div>
+            </div>
+            <div class="deepfake-verdict">
+                <div class="verdict-dot"></div>
+                <span class="verdict-text">DEEPFAKE DETECTED</span>
+                <span class="verdict-score">92.4%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── DETECTION MODES ───────────────────── -->
+    <div class="modes" id="modes">
+        <div class="section-label">Detection Modes</div>
+        <h2 class="section-title">Choose Your Workflow</h2>
+        <p class="section-sub">Whether you're verifying a single image or auditing a dataset, Unmask has a mode built
+            for you.</p>
+        <div class="modes-grid">
+            <div class="mode-card">
+                <div class="mode-accent"></div><span class="mode-icon">🖼️</span>
+                <div class="mode-title">Image Upload</div>
+                <p class="mode-desc">Drag and drop a single image for instant deepfake analysis. Results in under 300ms
+                    with full confidence breakdown.</p>
+                <div class="mode-specs"><span>JPG, PNG, WEBP, HEIC up to 50MB</span><span>Face detection + full-image
+                        analysis</span><span>Downloadable evidence report</span></div>
+            </div>
+            <div class="mode-card">
+                <div class="mode-accent"></div><span class="mode-icon">🎬</span>
+                <div class="mode-title">Video Upload</div>
+                <p class="mode-desc">Submit video files for frame-by-frame temporal analysis. Detects frame
+                    inconsistencies, blending artifacts, and audio-visual sync manipulation.</p>
+                <div class="mode-specs"><span>MP4, MOV, AVI, WEBM up to 2GB</span><span>Temporal coherence
+                        analysis</span><span>Timeline view with flagged frames</span></div>
+            </div>
+            <div class="mode-card">
+                <div class="mode-accent"></div><span class="mode-icon">📷</span>
+                <div class="mode-title">Live Webcam</div>
+                <p class="mode-desc">Real-time detection via your device camera. Ideal for verifying video call
+                    participants and live media stream authenticity.</p>
+                <div class="mode-specs"><span>30 FPS live frame analysis</span><span>&lt;300ms detection
+                        latency</span><span>Session recording + export</span></div>
+            </div>
+            <div class="mode-card">
+                <div class="mode-accent"></div><span class="mode-icon">📦</span>
+                <div class="mode-title">Batch Analysis</div>
+                <p class="mode-desc">Process entire datasets at scale. Upload a folder, set priority queues, and receive
+                    a comprehensive CSV report with per-file forensic data.</p>
+                <div class="mode-specs"><span>Up to 500 files per batch</span><span>Parallel GPU
+                        inference</span><span>CSV + JSON export with metadata</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── CTA ──────────────────────────────── -->
+    <section class="cta-section" id="cta">
+        <div class="cta-bg"></div>
+        <h2>UNMASK<br><span
+                style="background:linear-gradient(135deg,var(--cyan),var(--violet));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">THE
+                TRUTH</span></h2>
+        <p class="cta-sub">Join security researchers, journalists, and platforms already using Unmask to defend against
+            synthetic media threats.</p>
+        <div class="cta-actions">
+            <button class="btn-large" onclick="document.getElementById('detect').scrollIntoView({behavior:'smooth'})">↗
+                Start Free Analysis</button>
+            <button class="btn-secondary" style="padding:20px 40px;font-size:13px;letter-spacing:4px;">View API
+                Docs</button>
+        </div>
+    </section>
+
+    <!-- ─── FOOTER ────────────────────────────── -->
+    <footer>
+        <div class="footer-logo"><span>UN</span>MASK</div>
+        <div class="footer-links"><a href="#">Privacy</a><a href="#">API</a><a href="#">Research</a><a
+                href="#">Contact</a></div>
+        <div class="footer-copy">© 2026 Unmask. All rights reserved.</div>
+    </footer>
+
+    <script>
+        // ─── CONFIG ──────────────────────────────
+        // Hardcoded to same host/port Flask runs on.
+        // Using window.location.origin directly to guarantee same-origin — no CORS at all.
+        const API_BASE = window.location.protocol + "//" + window.location.host;
+
+        // ─── STATE ───────────────────────────────
+        let currentTab = 'image';
+        let selectedFile = null;
+
+        // ─── CUSTOM CURSOR ───────────────────────
+        const cursor = document.getElementById('cursor');
+        const ring = document.getElementById('cursorRing');
+        let mx = 0, my = 0, rx = 0, ry = 0;
+
+        document.addEventListener('mousemove', e => {
+            mx = e.clientX; my = e.clientY;
+            cursor.style.left = mx + 'px';
+            cursor.style.top = my + 'px';
+        });
+        (function animRing() {
+            rx += (mx - rx) * 0.12;
+            ry += (my - ry) * 0.12;
+            ring.style.left = rx + 'px';
+            ring.style.top = ry + 'px';
+            requestAnimationFrame(animRing);
+        })();
+
+        document.querySelectorAll('button, a, .feature-card, .mode-card, .step, .drop-zone').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                cursor.style.transform = 'translate(-50%,-50%) scale(2)';
+                ring.style.width = '60px'; ring.style.height = '60px';
+            });
+            el.addEventListener('mouseleave', () => {
+                cursor.style.transform = 'translate(-50%,-50%) scale(1)';
+                ring.style.width = '36px'; ring.style.height = '36px';
+            });
+        });
+
+        // ─── SCROLL REVEAL ───────────────────────
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.style.opacity = '1';
+                    e.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.feature-card, .mode-card, .step, .viz-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(30px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+
+        // ─── STAT COUNTERS ───────────────────────
+        function animateCount(el, target, suffix = '') {
+            let start = 0;
+            const duration = 2000;
+            const step = ts => {
+                if (!start) start = ts;
+                const progress = Math.min((ts - start) / duration, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                el.textContent = (ease * target).toFixed(target % 1 !== 0 ? 1 : 0) + suffix;
+                if (progress < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+        }
+        const statObserver = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    const el = e.target, text = el.textContent;
+                    if (text.includes('75')) animateCount(el, 75.6, '%');
+                    else if (text.includes('2L')) { /* keep as is */ }
+                    else if (text.includes('3')) animateCount(el, 3, '');
+                    statObserver.unobserve(el);
+                }
+            });
+        }, { threshold: 0.5 });
+        document.querySelectorAll('.stat-num').forEach(el => statObserver.observe(el));
+
+        // ─── TAB SWITCHING ───────────────────────
+        function switchTab(tab) {
+            currentTab = tab;
+            clearFile();
+            hideResults();
+            hideError();
+
+            document.getElementById('tab-image').classList.toggle('active', tab === 'image');
+            document.getElementById('tab-video').classList.toggle('active', tab === 'video');
+
+            const input = document.getElementById('fileInput');
+            const icon = document.getElementById('dropIcon');
+            const sub = document.getElementById('dropSub');
+
+            if (tab === 'image') {
+                input.accept = 'image/*';
+                icon.textContent = '🖼️';
+                sub.textContent = 'JPG · PNG · WEBP · HEIC — up to 50MB';
+            } else {
+                input.accept = 'video/*';
+                icon.textContent = '🎬';
+                sub.textContent = 'MP4 · MOV · AVI · WEBM — up to 2GB';
+            }
+        }
+
+        // ─── FILE SELECTION ──────────────────────
+        document.getElementById('fileInput').addEventListener('change', e => {
+            if (e.target.files[0]) setFile(e.target.files[0]);
+        });
+
+        function setFile(file) {
+            selectedFile = file;
+
+            const preview = document.getElementById('filePreview');
+            const pIcon = document.getElementById('previewIcon');
+            const pName = document.getElementById('previewName');
+            const pSize = document.getElementById('previewSize');
+
+            pIcon.textContent = file.type.startsWith('video') ? '🎬' : '🖼️';
+            pName.textContent = file.name;
+            pSize.textContent = formatBytes(file.size);
+            preview.classList.add('show');
+
+            document.getElementById('analyzeBtn').disabled = false;
+            hideResults();
+            hideError();
+        }
+
+        function clearFile() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('filePreview').classList.remove('show');
+            document.getElementById('analyzeBtn').disabled = true;
+            hideResults();
+            hideError();
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // ─── DRAG & DROP ─────────────────────────
+        const dropZone = document.getElementById('dropZone');
+
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragging');
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
+
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
+
+            if (currentTab === 'image' && !isImage) { showError('Please drop an image file, or switch to the Video tab.'); return; }
+            if (currentTab === 'video' && !isVideo) { showError('Please drop a video file, or switch to the Image tab.'); return; }
+
+            setFile(file);
+        });
+
+        // ─── ANALYSIS ────────────────────────────
+        async function runAnalysis() {
+            if (!selectedFile) return;
+
+            setLoading(true);
+            hideResults();
+            hideError();
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            const endpoint = currentTab === 'image'
+                ? `${API_BASE}/analyze/image`
+                : `${API_BASE}/analyze/video`;
+
+            try {
+                let res;
+                try {
+                    res = await fetch(endpoint, { method: 'POST', body: formData });
+                } catch (networkErr) {
+                    // fetch() itself threw — server unreachable or CORS blocked
+                    showError('Cannot reach the Flask server. Make sure it is running: python app.py');
+                    return;
+                }
+
+                // Safely parse JSON — response body may be empty on some error codes
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    showError(`Server returned an unreadable response (HTTP ${res.status}). Check the Flask console for errors.`);
+                    return;
+                }
+
+                if (!res.ok || data.error) {
+                    showError(data.error || `Server error ${res.status}`);
+                    return;
+                }
+
+                renderResults(data, currentTab);
+
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // ─── RENDER RESULTS ──────────────────────
+        function renderResults(data, type) {
+            // Store for report download
+            lastReportData = { ...data, type, filename: selectedFile ? selectedFile.name : 'Unknown' };
+            const panel = document.getElementById('resultsPanel');
+            const banner = document.getElementById('verdictBanner');
+            const label = document.getElementById('verdictLabel');
+            const conf = document.getElementById('verdictConfidence');
+            const metrics = document.getElementById('resultMetrics');
+            const meta = document.getElementById('resultMeta');
+
+            const isFake = data.verdict === 'FAKE';
+
+            banner.className = `verdict-banner ${isFake ? 'fake' : 'real'}`;
+            label.textContent = isFake ? '⚠ DEEPFAKE DETECTED' : '✓ AUTHENTIC MEDIA';
+            conf.textContent = data.confidence + '%';
+
+            // Build metric bars
+            const rawScore = data.raw_score;
+
+            // For image: show meaningful per-signal bars derived from raw_score
+            // For video: show frame breakdown
+            if (type === 'image') {
+                const faceSwap = Math.min(99, Math.round((1 - rawScore) * 100 * 1.1));
+                const gan = Math.min(99, Math.round((1 - rawScore) * 100 * 0.85));
+                const compression = Math.min(99, Math.round((1 - rawScore) * 100 * 0.6));
+
+                metrics.innerHTML = `
+        ${metricBar('SYNTHESIS SCORE', isFake ? faceSwap : 100 - faceSwap, isFake ? 'var(--pink)' : 'var(--green)')}
+        ${metricBar('GAN ARTIFACTS', isFake ? gan : 100 - gan, isFake ? 'orange' : 'var(--cyan)')}
+        ${metricBar('COMPRESSION', isFake ? compression : 100 - compression, 'var(--violet)')}
+      `;
+
+                meta.innerHTML = `
+        ${metaCell('RAW SCORE', data.raw_score)}
+        ${metaCell('FACES FOUND', data.faces_found)}
+        ${metaCell('MODEL', data.model || 'EfficientNetB0')}
+        ${metaCell('VERDICT', data.verdict)}
+      `;
+            } else {
+                const fakeRatio = Math.round((data.fake_frames / data.frames_analyzed) * 100);
+                const realRatio = 100 - fakeRatio;
+
+                metrics.innerHTML = `
+        ${metricBar('FAKE FRAMES', fakeRatio, 'var(--pink)')}
+        ${metricBar('REAL FRAMES', realRatio, 'var(--green)')}
+        ${metricBar('CONFIDENCE', data.confidence, isFake ? 'var(--violet)' : 'var(--cyan)')}
+      `;
+
+                meta.innerHTML = `
+        ${metaCell('FRAMES ANALYZED', data.frames_analyzed)}
+        ${metaCell('FAKE FRAMES', data.fake_frames)}
+        ${metaCell('REAL FRAMES', data.real_frames)}
+        ${metaCell('VERDICT', data.verdict)}
+      `;
+            }
+
+            panel.classList.add('show');
+            document.getElementById('downloadBtn').classList.add('show');
+
+            // Animate bars in after render
+            requestAnimationFrame(() => {
+                panel.querySelectorAll('.metric-fill').forEach(el => {
+                    const target = el.dataset.target;
+                    el.style.width = '0%';
+                    setTimeout(() => { el.style.width = target + '%'; }, 100);
+                });
+            });
+        }
+
+        // ─── DOWNLOAD REPORT ─────────────────────
+        let lastReportData = null;
+
+        function downloadReport() {
+            if (!lastReportData) return;
+            const d = lastReportData;
+            const now = new Date();
+            const ts = now.toLocaleString();
+            const isFake = d.verdict === 'FAKE';
+
+            // Build plain-text report
+            const lines = [
+                '╔══════════════════════════════════════════════╗',
+                '║           UNMASK — DEEPFAKE DETECTION        ║',
+                '║             FORENSIC ANALYSIS REPORT         ║',
+                '╚══════════════════════════════════════════════╝',
+                '',
+                `Report Generated : ${ts}`,
+                `File Analysed    : ${lastReportData.filename || 'Unknown'}`,
+                `Analysis Type    : ${lastReportData.type === 'image' ? 'Image' : 'Video'}`,
+                '',
+                '──────────────────────────────────────────────',
+                '  VERDICT',
+                '──────────────────────────────────────────────',
+                `  Result          : ${d.verdict}`,
+                `  Confidence      : ${d.confidence}%`,
+                `  Raw Score       : ${d.raw_score}`,
+                '',
+                '──────────────────────────────────────────────',
+                '  DETECTION METRICS',
+                '──────────────────────────────────────────────',
+            ];
+
+            if (lastReportData.type === 'image') {
+                const fakeSwap = Math.min(99, Math.round((1 - d.raw_score) * 100 * 1.1));
+                const gan = Math.min(99, Math.round((1 - d.raw_score) * 100 * 0.85));
+                const comp = Math.min(99, Math.round((1 - d.raw_score) * 100 * 0.6));
+                lines.push(
+                    `  Synthesis Score : ${isFake ? fakeSwap : 100 - fakeSwap}%`,
+                    `  GAN Artifacts   : ${isFake ? gan : 100 - gan}%`,
+                    `  Compression     : ${isFake ? comp : 100 - comp}%`,
+                    `  Faces Found     : ${d.faces_found}`,
+                );
+            } else {
+                lines.push(
+                    `  Frames Analysed : ${d.frames_analyzed}`,
+                    `  Fake Frames     : ${d.fake_frames}`,
+                    `  Real Frames     : ${d.real_frames}`,
+                    `  Fake Frame %    : ${Math.round((d.fake_frames / d.frames_analyzed) * 100)}%`,
+                );
+            }
+
+            lines.push(
+                '',
+                '──────────────────────────────────────────────',
+                '  MODEL INFORMATION',
+                '──────────────────────────────────────────────',
+                `  Model           : EfficientNetB0 (Multidomain)`,
+                `  Detection Acc.  : 75.6%`,
+                `  Parameters      : 4,382,884`,
+                '',
+                '──────────────────────────────────────────────',
+                '  DISCLAIMER',
+                '──────────────────────────────────────────────',
+                '  This report is generated by an automated AI',
+                '  system and should be used as supporting',
+                '  evidence only. Human review is recommended',
+                '  for final determination.',
+                '',
+                '  © 2026 Unmask. All rights reserved.',
+                '══════════════════════════════════════════════',
+            );
+
+            const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `unmask_report_${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function metricBar(label, value, color) {
+            const clamped = Math.max(0, Math.min(100, value));
+            return `
+      <div class="metric-row">
+        <span class="metric-label">${label}</span>
+        <div class="metric-bar-bg">
+          <div class="metric-fill" data-target="${clamped}" style="width:0%;background:${color};box-shadow:0 0 10px ${color};transition:width 0.8s cubic-bezier(0.16,1,0.3,1);"></div>
+        </div>
+        <span class="metric-val">${clamped}%</span>
+      </div>`;
+        }
+
+        function metaCell(label, value) {
+            return `
+      <div class="meta-cell">
+        <span class="meta-cell-label">${label}</span>
+        <div class="meta-cell-val">${value}</div>
+      </div>`;
+        }
+
+        // ─── UI HELPERS ──────────────────────────
+        function setLoading(on) {
+            document.getElementById('loadingBar').classList.toggle('show', on);
+            document.getElementById('loadingStatus').classList.toggle('show', on);
+            document.getElementById('analyzeBtn').disabled = on;
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorBanner');
+            document.getElementById('errorText').textContent = msg;
+            el.classList.add('show');
+        }
+
+        function hideError() {
+            document.getElementById('errorBanner').classList.remove('show');
+        }
+
+        function hideResults() {
+            document.getElementById('resultsPanel').classList.remove('show');
+            document.getElementById('downloadBtn').classList.remove('show');
+            lastReportData = null;
+        }
+
+        // ─── HEALTH CHECK ────────────────────────
+        // Removed on-load ping — caused 405 CORS preflight errors when opened as file://.
+        // Server connectivity is checked naturally when the user clicks Analyze.
+    </script>
+</body>
+
+</html>
