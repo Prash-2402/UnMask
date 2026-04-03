@@ -89,6 +89,13 @@ def load_model():
 # PREPROCESS
 # =============================
 def preprocess_face(img):
+    # Resize very large images to massively speed up MTCNN on CPU
+    max_dim = 800
+    h, w = img.shape[:2]
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        img = cv2.resize(img, (int(w * scale), int(h * scale)))
+
     faces = detector.detect_faces(img)
 
     if faces:
@@ -170,8 +177,8 @@ def analyze_image():
 
         face, face_count = preprocess_face(img)
 
-        scores = [float(model.predict(face, verbose=0)[0][0]) for _ in range(3)]
-        score  = float(np.mean(scores))
+        # Run inference exactly once instead of 3 redundant times
+        score = float(model.predict(face, verbose=0)[0][0])
 
         verdict    = 'REAL' if score > 0.9 else 'FAKE'
         confidence = score if score > 0.9 else (1 - score)
